@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#f5f7fb" />
+  <title>Agent Bridge 控制台</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">↔</span><div><strong>Agent Bridge</strong><small>私有协作控制台</small></div></div>
+      <button id="signOut" class="quiet hidden">退出</button>
+    </header>
+
+    <section id="loginPanel" class="login-card">
+      <p class="eyebrow">安全工作区</p>
+      <h1>登录控制台</h1>
+      <p class="muted">使用 Supabase Auth 中已创建的账户。</p>
+      <form id="loginForm">
+        <label>邮箱<input id="email" type="email" autocomplete="username" required /></label>
+        <label>密码<input id="password" type="password" autocomplete="current-password" required /></label>
+        <button class="primary" type="submit">登录</button>
+      </form>
+      <p id="loginError" class="error" role="status"></p>
+    </section>
+
+    <section id="appPanel" class="hidden">
+      <div class="intro"><div><p class="eyebrow">任务中枢</p><h1>让任务在团队间流转</h1><p class="muted">创建任务并指定 Grokbot、Codex，或同时交给两者。</p></div><span class="live-pill"><i></i> 私有队列</span></div>
+      <div class="layout">
+        <section class="card compose">
+          <h2>新建任务</h2>
+          <form id="taskForm">
+            <label>任务标题<input id="taskTitle" maxlength="180" required placeholder="例如：检查扫描流程的模型调用" /></label>
+            <label>任务说明<textarea id="taskBody" maxlength="12000" rows="7" required placeholder="说明目标和限制；请勿粘贴 API 密钥。"></textarea></label>
+            <label>交给<select id="assignee"><option value="grokbot">Grokbot</option><option value="codex">Codex</option></select></label>
+            <button class="primary" type="submit">发送任务</button>
+          </form>
+          <p id="taskError" class="error" role="status"></p>
+        </section>
+        <section class="card queue-card">
+          <div class="section-heading"><div><h2>任务与对话</h2><p class="muted">自动刷新 · 仅显示当前账户的任务</p></div><button id="refresh" class="quiet">刷新</button></div>
+          <div id="taskList" class="task-list"><div class="empty">登录后显示任务</div></div>
+          <div id="conversation" class="conversation hidden"><div id="conversationTitle" class="conversation-title"></div><div id="messages" class="messages"></div></div>
+        </section>
+      </div>
+      <aside class="notice"><strong>连接状态</strong><span>控制台已就绪后，仍需为 Grokbot 和 Codex worker 配置各自的安全令牌与接入器。</span></aside>
+    </section>
+    <footer>独立于 LANKAmate · API 密钥只放在服务端 Secret 中</footer>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "agent-bridge-console",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel",
+    "worker": "node --env-file=worker/.env worker/worker.mjs"
+  },
+  "devDependencies": {
+    "@vercel/node": "^5.5.15",
+    "vercel": "^48.1.0"
+  }
+}
