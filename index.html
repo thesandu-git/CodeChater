@@ -27,14 +27,14 @@
     </section>
 
     <section id="appPanel" class="hidden">
-      <div class="intro"><div><p class="eyebrow">任务中枢</p><h1>让任务在团队间流转</h1><p class="muted">创建任务并指定 Grokbot、Codex，或同时交给两者。</p></div><span class="live-pill"><i></i> 私有队列</span></div>
+      <div class="intro"><div><p class="eyebrow">任务中枢</p><h1>让任务在团队间流转</h1><p class="muted">创建任务并指定 Grokbot、Codex、Dev 2，或同时交给多者。</p></div><span class="live-pill"><i></i> 私有队列</span></div>
       <div class="layout">
         <section class="card compose">
           <h2>新建任务</h2>
           <form id="taskForm">
             <label>任务标题<input id="taskTitle" maxlength="180" required placeholder="例如：检查扫描流程的模型调用" /></label>
             <label>任务说明<textarea id="taskBody" maxlength="12000" rows="7" required placeholder="说明目标和限制；请勿粘贴 API 密钥。"></textarea></label>
-            <label>交给<select id="assignee"><option value="grokbot">Grokbot</option><option value="codex">Codex</option></select></label>
+            <label>交给<select id="assignee"><option value="grokbot">Grokbot</option><option value="codex">Codex</option><option value="dev2">Dev 2</option></select></label>
             <button class="primary" type="submit">发送任务</button>
           </form>
           <p id="taskError" class="error" role="status"></p>
@@ -45,7 +45,7 @@
           <div id="conversation" class="conversation hidden"><div id="conversationTitle" class="conversation-title"></div><div id="messages" class="messages"></div></div>
         </section>
       </div>
-      <aside class="notice"><strong>连接状态</strong><span>控制台已就绪后，仍需为 Grokbot 和 Codex worker 配置各自的安全令牌与接入器。</span></aside>
+      <aside class="notice"><strong>连接状态</strong><span>控制台已就绪后，仍需为 Grokbot、Codex 和 Dev 2 worker 配置各自的安全令牌与接入器。</span></aside>
     </section>
     <footer>独立于 LANKAmate · API 密钥只放在服务端 Secret 中</footer>
   </main>

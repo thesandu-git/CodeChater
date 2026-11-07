@@ -6,7 +6,7 @@ create table if not exists public.tasks (
   created_by text not null default 'owner' check (created_by in ('owner', 'grokbot')),
   title text not null check (char_length(title) between 1 and 180),
   body text not null check (char_length(body) between 1 and 12000),
-  assigned_to text not null check (assigned_to in ('grokbot', 'codex')),
+  assigned_to text not null check (assigned_to in ('grokbot', 'codex', 'dev2')),
   status text not null default 'pending' check (status in ('pending', 'working', 'needs_input', 'done', 'failed')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -15,7 +15,7 @@ create table if not exists public.tasks (
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
   task_id uuid not null references public.tasks(id) on delete cascade,
-  sender text not null check (sender in ('owner', 'grokbot', 'codex')),
+  sender text not null check (sender in ('owner', 'grokbot', 'codex', 'dev2')),
   body text not null check (char_length(body) between 1 and 12000),
   created_at timestamptz not null default now()
 );

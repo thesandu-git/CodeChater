@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'POST') {
       const { title, body, assigned_to } = req.body ?? {};
-      if (!validText(title, 180) || !validText(body) || !['grokbot', 'codex'].includes(assigned_to)) {
+      if (!validText(title, 180) || !validText(body) || !['grokbot', 'codex', 'dev2'].includes(assigned_to)) {
         return json(res, 400, { error: 'Provide a title, task text, and a valid assignee.' });
       }
       const response = await db('tasks?select=*', {

@@ -7,16 +7,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!agent) return json(res, 401, { error: 'Invalid agent token.' });
 
     if (req.method === 'POST') {
-      if (agent !== 'grokbot') return json(res, 403, { error: 'Only Grokbot can submit work to Codex.' });
-      const { title, body } = req.body ?? {};
+      if (agent !== 'grokbot') return json(res, 403, { error: 'Only Grokbot can submit work to agents.' });
+      const { title, body, assigned_to } = req.body ?? {};
       if (!validText(title, 180) || !validText(body)) return json(res, 400, { error: 'Provide a title and task text.' });
+      const assignee = assigned_to === undefined || assigned_to === null ? 'codex' : assigned_to;
+      if (assignee !== 'codex' && assignee !== 'dev2') {
+        return json(res, 400, { error: "assigned_to must be 'codex' or 'dev2'." });
+      }
       const created = await db('tasks?select=*', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ owner_id: env('CONSOLE_OWNER_ID'), created_by: 'grokbot', title: title.trim(), body: body.trim(), assigned_to: 'codex' }),
+        body: JSON.stringify({ owner_id: env('CONSOLE_OWNER_ID'), created_by: 'grokbot', title: title.trim(), body: body.trim(), assigned_to: assignee }),
       });
       const rows = await created.json();
-      if (!created.ok) return json(res, 502, { error: 'Could not queue task for Codex.' });
+      if (!created.ok) return json(res, 502, { error: `Could not queue task for ${assignee}.` });
       const task = rows[0];
       const message = await db('messages', {
         method: 'POST',
@@ -27,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed.' });
-    if (agent !== 'codex' && agent !== 'grokbot') return json(res, 403, { error: 'Invalid agent.' });
+    if (agent !== 'codex' && agent !== 'dev2' && agent !== 'grokbot') return json(res, 403, { error: 'Invalid agent.' });
     const requested = typeof req.query.agent === 'string' ? req.query.agent : '';
     if (requested !== agent) return json(res, 403, { error: 'This token is not assigned to that agent.' });
 

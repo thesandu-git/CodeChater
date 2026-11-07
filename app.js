@@ -42,7 +42,7 @@ function statusLabel(status) {
 }
 
 function agentLabel(value) {
-  return ({ owner: '你', grokbot: 'Grokbot', codex: 'Codex' })[value] || value;
+  return ({ owner: '你', grokbot: 'Grokbot', codex: 'Codex', dev2: 'Dev 2' })[value] || value;
 }
 
 function safeDate(value) {
