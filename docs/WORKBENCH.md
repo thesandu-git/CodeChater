@@ -94,6 +94,16 @@ node scripts/wb.mjs token --project "Prasad Shelf" --in 88000 --out 4000 --waste
 node scripts/wb.mjs log --file C:/path/to/log.md --projects "Prasad Shelf" --done 2 --failed 1
 ```
 
+## 本地启动
+
+```bash
+cp .env.example .env.local     # 填 SUPABASE_URL / ANON_KEY / SERVICE_ROLE_KEY / CONSOLE_OWNER_ID
+npm install
+npm run dev:local              # http://localhost:3120 ，工作台在 /workbench
+```
+
+`npm run dev`（`vercel dev`）在这个仓库里用不了：`package.json` 的 `dev` 脚本就是 `vercel dev`，CLI 会判定递归调用并退出。`dev:local` 只做本地静态托管 + 把 `/api/*` 交给真实的 TS handler，够验证用；它不模拟 Vercel 的域名、rewrite 和构建。
+
 ## 上线顺序（当前状态：只在本地）
 
 1. **本地**（已完成）：`npm run typecheck`；本地 harness 跑通全部接口；界面在真实数据上渲染过。
