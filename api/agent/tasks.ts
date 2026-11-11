@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { agentForToken, db, env, json, validText } from '../_lib';
+import { agentForToken, db, env, json, readJson, validText } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ owner_id: env('CONSOLE_OWNER_ID'), created_by: 'grokbot', title: title.trim(), body: body.trim(), assigned_to: assignee }),
       });
-      const rows = await created.json();
+      const rows = await readJson(created);
       if (!created.ok) return json(res, 502, { error: `Could not queue task for ${assignee}.` });
       const task = rows[0];
       const message = await db('messages', {
@@ -39,17 +39,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (taskId) {
       if (!/^[0-9a-f-]{36}$/i.test(taskId)) return json(res, 400, { error: 'Invalid task id.' });
       const lookup = await db(`tasks?id=eq.${taskId}&select=id,title,body,assigned_to,status,created_by,created_at,updated_at&limit=1`);
-      const rows = await lookup.json();
+      const rows = await readJson(lookup);
       const task = rows[0];
       const mayRead = task && (task.assigned_to === agent || (agent === 'grokbot' && task.created_by === 'grokbot'));
       if (!lookup.ok || !mayRead) return json(res, 404, { error: 'Task not found.' });
       const messageResponse = await db(`messages?task_id=eq.${taskId}&select=sender,body,created_at&order=created_at.asc&limit=200`);
       if (!messageResponse.ok) return json(res, 502, { error: 'Could not load task messages.' });
-      return json(res, 200, { task, messages: await messageResponse.json() });
+      return json(res, 200, { task, messages: await readJson(messageResponse) });
     }
 
     const response = await db(`tasks?status=eq.pending&assigned_to=eq.${agent}&select=id,title,body,assigned_to,status,created_at&order=created_at.asc&limit=20`);
-    return json(res, response.status, await response.json());
+    return json(res, response.status, await readJson(response));
   } catch {
     return json(res, 503, { error: 'Agent queue is not configured.' });
   }

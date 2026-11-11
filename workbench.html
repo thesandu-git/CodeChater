@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#f5f7fb" />
+  <title>AI 工作台 · 项目与 token 中枢</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/workbench.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">◱</span><div><strong>AI 工作台</strong><small>预案 · 项目 · token 审计</small></div></div>
+      <div class="top-actions">
+        <a class="quiet link" href="/">任务台</a>
+        <input id="dayInput" class="quiet date" type="date" aria-label="查看日期" />
+        <button id="refresh" class="quiet">刷新</button>
+        <button id="signOut" class="quiet hidden">退出</button>
+      </div>
+    </header>
+
+    <section id="loginPanel" class="login-card">
+      <p class="eyebrow">安全工作区</p>
+      <h1>登录工作台</h1>
+      <p class="muted">与任务台同一个 Supabase 账户。</p>
+      <form id="loginForm">
+        <label>邮箱<input id="email" type="email" autocomplete="username" required /></label>
+        <label>密码<input id="password" type="password" autocomplete="current-password" required /></label>
+        <button class="primary" type="submit">登录</button>
+      </form>
+      <p id="loginError" class="error" role="status"></p>
+    </section>
+
+    <section id="appPanel" class="hidden">
+      <div class="intro">
+        <div>
+          <p class="eyebrow" id="dayLabel">今天</p>
+          <h1>项目卡在哪，钱花在哪</h1>
+          <p class="muted" id="subLabel">预案 → 项目 → 变现的实时视图；晚上每个 bot 交 token 账和 Agent log。</p>
+        </div>
+        <div class="intro-actions">
+          <button id="newPlanBtn" class="quiet">+ 预案</button>
+          <button id="newProjectBtn" class="primary small">+ 项目</button>
+        </div>
+      </div>
+
+      <section id="kpis" class="kpi-row" aria-live="polite"></section>
+
+      <section class="card block">
+        <div class="section-heading">
+          <div><h2>项目流水线</h2><p class="muted">按阶段排列 · 停滞 = 阻塞/暂停，或连续 3 天没有推进</p></div>
+          <span id="boardMeta" class="muted"></span>
+        </div>
+        <div id="board" class="board"></div>
+      </section>
+
+      <div class="two-col">
+        <section class="card block">
+          <div class="section-heading"><h2>卡点</h2><span class="muted" id="stuckMeta"></span></div>
+          <div id="stuckList" class="stack"></div>
+        </section>
+        <section class="card block">
+          <div class="section-heading"><h2>概念 → 变现</h2><span class="muted">阶段中位数来自真实迁移记录</span></div>
+          <div id="funnel" class="funnel"></div>
+          <div id="medians" class="medians"></div>
+        </section>
+      </div>
+
+      <div class="two-col">
+        <section class="card block">
+          <div class="section-heading"><h2>今日汇报</h2><span class="muted" id="feedMeta"></span></div>
+          <div id="feed" class="feed"></div>
+        </section>
+        <section class="card block">
+          <div class="section-heading"><h2>7 日趋势</h2><span class="muted">token 与推进项目数</span></div>
+          <div id="trend" class="trend"></div>
+          <div id="funnelNotes" class="note-list"></div>
+        </section>
+      </div>
+
+      <section class="card block">
+        <div class="section-heading">
+          <div><h2>Token 审计</h2><p class="muted">空耗 = bot 自己声明浪费的 token；跨停滞项目的消耗单独标红</p></div>
+          <span class="muted" id="tokenMeta"></span>
+        </div>
+        <div id="agentTable" class="table-wrap"></div>
+        <div id="unaudited" class="callout hidden"></div>
+      </section>
+
+      <section class="card block">
+        <div class="section-heading"><h2>谁在哪个项目上</h2><span class="muted">近 7 天</span></div>
+        <div id="participation" class="table-wrap"></div>
+      </section>
+
+      <section class="card block">
+        <div class="section-heading"><h2>Agent log</h2><span class="muted" id="logMeta"></span></div>
+        <div id="logs" class="logs"></div>
+      </section>
+
+      <aside class="notice"><strong>数据来源</strong><span>每个 bot 通过 <code>POST /api/workbench/report</code>、<code>/tokens</code>、<code>/logs</code> 上报；仪表盘只读，不改已有的任务桥数据。</span></aside>
+    </section>
+    <footer>独立于 LANKAmate · 增量表 wb_* · 令牌只放在服务端 Secret</footer>
+  </main>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="section-heading"><h2 id="modalTitle">新建</h2><button id="modalClose" class="quiet">关闭</button></div>
+      <div id="modalBody"></div>
+      <p id="modalError" class="error" role="status"></p>
+    </div>
+  </div>
+
+  <script src="/workbench.js" defer></script>
+</body>
+</html>

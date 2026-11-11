@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, getOwner, json, validText } from './_lib';
+import { db, getOwner, json, readJson, validText } from './_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'GET') {
       const response = await db(`tasks?owner_id=eq.${owner}&select=*&order=created_at.desc&limit=100`);
-      return json(res, response.status, await response.json());
+      return json(res, response.status, await readJson(response));
     }
 
     if (req.method === 'POST') {
@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ owner_id: owner, created_by: 'owner', title: title.trim(), body: body.trim(), assigned_to }),
       });
-      const rows = await response.json();
+      const rows = await readJson(response);
       if (!response.ok) return json(res, response.status, { error: 'Could not create task.' });
       const task = rows[0];
       const msg = await db('messages', {

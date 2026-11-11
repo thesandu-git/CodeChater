@@ -5,10 +5,13 @@
   "scripts": {
     "dev": "vercel dev",
     "deploy": "vercel",
-    "worker": "node --env-file=worker/.env worker/worker.mjs"
+    "worker": "node --env-file=worker/.env worker/worker.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "@vercel/node": "^5.5.15",
+    "typescript": "^5.7.2",
     "vercel": "^48.1.0"
   }
 }

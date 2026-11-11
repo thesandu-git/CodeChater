@@ -17,6 +17,15 @@ This scaffold is a generic message relay. It does not make the current Codex cha
 7. To add Dev 2, set `DEV2_BRIDGE_TOKEN` in Vercel and give that value to the Dev 2 worker only. Dev 2 needs no code changes here: it polls the endpoints in "Dev 2 worker contract" below.
 8. Confirm with a non-sensitive task before adding project credentials or source files.
 
+## AI 工作台（/workbench）
+
+同一部署里的第二个页面：追踪产品预案与项目数量、项目卡点、概念到变现的剩余时间，以及每个 bot 每天的 token 消耗和 Agent log。
+
+- 页面：`/workbench`（Supabase Auth 同一账户）
+- 表：`wb_*`（见 `supabase/migrations/20261111000000_add_workbench.sql`），与 `tasks` / `messages` 完全分离，不改变任务桥行为
+- bot 上报：`POST /api/workbench/report`、`/tokens`、`/logs`，用各 bot 自己的 bridge 令牌；CLI 在 `scripts/wb.mjs`
+- 完整说明：`docs/WORKBENCH.md`
+
 ## Agent HTTP contract
 
 ### Fetch assigned tasks

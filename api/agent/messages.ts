@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { agentForToken, db, json, validText, type TaskStatus } from '../_lib';
+import { agentForToken, db, json, readJson, type TaskStatus, validText } from '../_lib';
 
 const statuses: TaskStatus[] = ['working', 'needs_input', 'done', 'failed'];
 
@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return json(res, 400, { error: 'Provide a valid task id, message, and status.' });
     }
     const taskResponse = await db(`tasks?id=eq.${task_id}&select=id,assigned_to,created_by,status&limit=1`);
-    const rows = await taskResponse.json();
+    const rows = await readJson(taskResponse);
     const task = rows[0];
     if (!taskResponse.ok || !task) return json(res, 404, { error: 'Task not found.' });
     const assignedAgent = task.assigned_to === agent;
