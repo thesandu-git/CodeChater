@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0e2444" />
+  <title>Studio · 产品、任务、时间与 token</title>
+  <link rel="stylesheet" href="/studio.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand" title="Studio">◧</div>
+      <nav class="rail-nav">
+        <button class="rail-btn is-active" data-tab="products" title="产品与进度">
+          <span class="glyph">◍</span><span>产品</span>
+        </button>
+        <button class="rail-btn" data-tab="kanban" title="Kanban">
+          <span class="glyph">▤</span><span>看板</span>
+        </button>
+        <button class="rail-btn" data-tab="calendar" title="日历与时间线">
+          <span class="glyph">▦</span><span>时间</span>
+        </button>
+        <button class="rail-btn" data-tab="log" title="Agent Log">
+          <span class="glyph">◫</span><span>Log</span>
+        </button>
+      </nav>
+      <div class="rail-foot">
+        <button id="signOut" class="rail-btn hidden" title="退出">
+          <span class="glyph">⏻</span><span>退出</span>
+        </button>
+      </div>
+    </aside>
+
+    <aside class="prail" id="prail" aria-label="产品列表">
+      <div class="prail-head">
+        <span class="prail-title">产品</span>
+        <button id="allProducts" class="prail-all">全部</button>
+      </div>
+      <div id="prailList" class="prail-list"></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="headline">
+          <p class="eyebrow" id="layerEyebrow">第一层</p>
+          <h1 id="layerTitle">产品与进度</h1>
+        </div>
+        <div class="top-actions">
+          <input id="dayInput" class="date" type="date" aria-label="查看日期" />
+          <button id="refresh" class="ghost">刷新</button>
+          <button id="primaryAction" class="primary">+ 产品</button>
+        </div>
+      </header>
+
+      <div id="bootError" class="boot-error hidden"></div>
+
+      <section id="layer-products" class="layer">
+        <div class="section-head">
+          <div><h2>产品</h2><p class="sub">环形图 = 离变现的距离；悬停展开细节，点击看产品弹窗</p></div>
+          <span id="productMeta" class="sub"></span>
+        </div>
+        <div id="productStrip" class="product-strip"></div>
+
+        <div class="section-head">
+          <div><h2>项目</h2><p class="sub">按状态分五类 · 点项目卡片看甘特图与参与 bot</p></div>
+          <span id="bucketMeta" class="sub"></span>
+        </div>
+        <div id="buckets" class="buckets"></div>
+      </section>
+
+      <section id="layer-kanban" class="layer hidden">
+        <div class="section-head">
+          <div><h2>Kanban</h2><p class="sub">所有任务与状态 · 卡住的、快到期的、需要你亲手做的</p></div>
+          <span id="kanbanMeta" class="sub"></span>
+        </div>
+        <div id="kanban" class="kanban"></div>
+      </section>
+
+      <section id="layer-calendar" class="layer hidden">
+        <div class="section-head">
+          <div><h2>日历 / 时间线</h2><p class="sub">深蓝描边 = 必须你亲手做或把关</p></div>
+          <div class="seg" id="calMode">
+            <button data-mode="calendar" class="is-active">日历</button>
+            <button data-mode="timeline">时间线</button>
+          </div>
+        </div>
+
+        <div id="calendarView">
+          <div class="cal-bar">
+            <button id="prevMonth" class="ghost small">←</button>
+            <strong id="monthLabel"></strong>
+            <button id="nextMonth" class="ghost small">→</button>
+            <button id="todayMonth" class="ghost small">回到今天</button>
+          </div>
+          <div class="cal-grid-head">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+          </div>
+          <div id="calendarGrid" class="cal-grid"></div>
+          <div class="section-head tight"><h3>过去完成的（近 10 天）</h3></div>
+          <div id="completedHistory" class="done-list"></div>
+        </div>
+
+        <div id="timelineView" class="hidden">
+          <div id="timelineCanvas" class="timeline-canvas"></div>
+          <div id="timelineLegend" class="legend"></div>
+        </div>
+      </section>
+
+      <section id="layer-log" class="layer hidden">
+        <div id="logKpis" class="kpi-row"></div>
+
+        <div class="grid-2">
+          <div class="card"><h3>按 bot</h3><div id="chartAgent" class="bars"></div></div>
+          <div class="card"><h3>按项目</h3><div id="chartProject" class="bars"></div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><h3>按来源 / 模型</h3><div id="chartModel" class="bars"></div></div>
+          <div class="card"><h3>30 天 token 与空耗</h3><div id="chartTrend" class="trend"></div></div>
+        </div>
+
+        <div class="card"><h3>token 审计</h3><div id="auditTable"></div></div>
+
+        <div class="grid-2">
+          <div class="card"><h3>项目推进一览</h3><div id="projectProgress" class="progress-list"></div></div>
+          <div class="card"><h3>今日 Agent log</h3><div id="logCards" class="log-list"></div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="overlay" class="overlay hidden" role="presentation">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header class="sheet-head">
+        <h2 id="modalTitle"></h2>
+        <button id="modalClose" class="ghost small">关闭</button>
+      </header>
+      <div id="modalBody" class="sheet-body"></div>
+      <p id="modalError" class="error" role="status"></p>
+    </div>
+  </div>
+
+  <div id="login" class="login-overlay">
+    <form id="loginForm" class="login-card">
+      <p class="eyebrow">Studio</p>
+      <h1>登录工作台</h1>
+      <p class="sub">与任务台同一个 Supabase 账户。</p>
+      <label>邮箱<input id="email" type="email" autocomplete="username" required /></label>
+      <label>密码<input id="password" type="password" autocomplete="current-password" required /></label>
+      <button class="primary" type="submit">登录</button>
+      <p id="loginError" class="error" role="status"></p>
+    </form>
+  </div>
+
+  <div id="tip" class="tip hidden"></div>
+
+  <script src="/studio.js"></script>
+</body>
+</html>

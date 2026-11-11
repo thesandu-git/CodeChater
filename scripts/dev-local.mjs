@@ -18,6 +18,10 @@ const STATIC = new Map([
   ['/index.html', 'index.html'],
   ['/workbench', 'workbench.html'],
   ['/workbench.html', 'workbench.html'],
+  ['/studio', 'studio.html'],
+  ['/studio.html', 'studio.html'],
+  ['/studio.js', 'studio.js'],
+  ['/studio.css', 'studio.css'],
   ['/app.js', 'app.js'],
   ['/workbench.js', 'workbench.js'],
   ['/style.css', 'style.css'],
@@ -129,5 +133,6 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`本地控制台：http://localhost:${PORT}`);
   console.log(`工作台：   http://localhost:${PORT}/workbench`);
+  console.log(`Studio：   http://localhost:${PORT}/studio`);
   console.log('用 Supabase Auth 的账户登录（与线上同一个账户）。Ctrl+C 退出。');
 });
