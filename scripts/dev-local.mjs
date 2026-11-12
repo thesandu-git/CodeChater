@@ -22,6 +22,7 @@ const STATIC = new Map([
   ['/studio.html', 'studio.html'],
   ['/studio.js', 'studio.js'],
   ['/studio.css', 'studio.css'],
+  ['/api-docs', 'docs/API.md'],
   ['/app.js', 'app.js'],
   ['/workbench.js', 'workbench.js'],
   ['/style.css', 'style.css'],
@@ -31,6 +32,7 @@ const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
 };
 
 function handlerFile(pathname) {

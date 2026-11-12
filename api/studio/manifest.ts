@@ -40,5 +40,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed.' });
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3120';
   const proto = (req.headers['x-forwarded-proto'] as string) || (String(host).startsWith('localhost') ? 'http' : 'https');
-  return json(res, 200, { ...MANIFEST, base: `${proto}://${host}`, viewer: who });
+  return json(res, 200, { ...MANIFEST, base: `${proto}://${host}`, viewer: who, docs: `${proto}://${host}/api-docs` });
 }

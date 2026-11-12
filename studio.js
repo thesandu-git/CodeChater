@@ -31,6 +31,8 @@ const FLAG = { no_log: '未交 log', spend_no_progress: '花了没推进', decla
 let config = null;
 let session = JSON.parse(localStorage.getItem('bridge-session') || 'null');
 const state = { view: null, tab: 'products', product: null, month: null, calMode: 'calendar' };
+let justDragged = false;
+let dragTaskId = null;
 
 const agentName = (id) => (state.view?.agents || []).find((a) => a.id === id)?.display_name || id || '—';
 const shortDate = (d) => (d ? d.slice(5).replace('-', '/') : '—');
@@ -480,15 +482,15 @@ function openTask(id) {
 // ── 第二层：Kanban ─────────────────────────────────────────
 function renderKanban() {
   const tasks = (state.view.tasks || []).filter((t) => !state.product || t.productId === state.product);
-  $('kanbanMeta').textContent = `${tasks.length} 个任务 · ${(state.view.projects || []).length} 个项目`;
+  $('kanbanMeta').textContent = `${tasks.length} 个任务 · ${(state.view.projects || []).length} 个项目 · 拖动卡片可改状态`;
   $('kanban').innerHTML = TASK_ORDER.map((status) => {
     const items = tasks.filter((t) => t.status === status);
-    return `<div class="kcol"><div class="kcol-head"><strong>${TASK_STATUS[status]}</strong><span class="n">${items.length}</span></div>
+    return `<div class="kcol" data-status="${status}"><div class="kcol-head"><strong>${TASK_STATUS[status]}</strong><span class="n">${items.length}</span></div>
       ${items.map((t) => {
         const due = t.due_at;
         const late = due && due < todayIso() && status !== 'completed';
         const soon = due && !late && due <= new Date(Date.now() + 5.5 * 3600e3 + 3 * 864e5).toISOString().slice(0, 10);
-        return `<article class="kcard s-${status}" data-task="${esc(t.id)}">
+        return `<article class="kcard s-${status}" data-task="${esc(t.id)}" draggable="true">
           <div class="kcard-title">${esc(t.title)}</div>
           <div class="kcard-proj">${esc(t.projectName || '—')}</div>
           <div class="kcard-foot">
@@ -502,7 +504,64 @@ function renderKanban() {
         </article>`;
       }).join('') || '<div class="empty">空</div>'}</div>`;
   }).join('');
-  $('kanban').querySelectorAll('[data-task]').forEach((node) => node.addEventListener('click', () => openTask(node.dataset.task)));
+
+  $('kanban').querySelectorAll('.kcard').forEach((card) => {
+    card.addEventListener('click', () => { if (!justDragged) openTask(card.dataset.task); });
+    card.addEventListener('dragstart', (event) => {
+      dragTaskId = card.dataset.task;
+      justDragged = true;
+      card.classList.add('is-dragging');
+      event.dataTransfer.setData('text/plain', card.dataset.task);
+      event.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('is-dragging');
+      document.querySelectorAll('.kcol').forEach((c) => c.classList.remove('drop-target'));
+      setTimeout(() => { justDragged = false; }, 250);
+    });
+  });
+
+  $('kanban').querySelectorAll('.kcol').forEach((col) => {
+    col.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      col.classList.add('drop-target');
+    });
+    col.addEventListener('dragleave', (event) => {
+      if (!col.contains(event.relatedTarget)) col.classList.remove('drop-target');
+    });
+    col.addEventListener('drop', async (event) => {
+      event.preventDefault();
+      col.classList.remove('drop-target');
+      const id = event.dataTransfer.getData('text/plain') || dragTaskId;
+      dragTaskId = null;
+      if (!id) return;
+      await moveTask(id, col.dataset.status);
+    });
+  });
+}
+
+/** 拖动改状态：先乐观更新本地面板，再写库；失败回滚并提示。 */
+async function moveTask(id, status) {
+  const task = (state.view.tasks || []).find((t) => t.id === id);
+  if (!task || task.status === status) return;
+  const previous = task.status;
+  task.status = status;
+  renderKanban();
+  try {
+    await api(`/api/studio/tasks?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, note: '看板拖动' }),
+    });
+    await load();
+  } catch (error) {
+    task.status = previous;
+    renderKanban();
+    const box = $('bootError');
+    box.textContent = `改状态失败：${error.message}`;
+    box.classList.remove('hidden');
+    setTimeout(() => box.classList.add('hidden'), 6000);
+  }
 }
 
 // ── 第三层：日历 / 时间线 ──────────────────────────────────

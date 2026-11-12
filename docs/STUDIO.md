@@ -7,7 +7,7 @@
 | 层 | 看什么 | 给谁用 |
 |---|---|---|
 | 第一层 产品与进度 | 产品（环形图 = 离变现距离，悬停展开）、项目按 执行/完成/取消/暂停/未启动 分类、项目弹窗（参与 bot、当前任务、甘特+里程碑、目的/规划/综述、研究文档） | Prasad 看全局 |
-| 第二层 Kanban | 所有任务的五档状态：正常推进 / 有风险 / 受阻 / 完成 / 暂停；任务弹窗含规划、接手 AI、子任务 | Prasad + bot 找活 |
+| 第二层 Kanban | 所有任务的五档状态：正常推进 / 有风险 / 受阻 / 完成 / 暂停；卡片可拖到别的列直接改状态；任务弹窗含规划、接手 AI、子任务 | Prasad + bot 找活 |
 | 第三层 日历 / 时间线 | 月历（深蓝 = 必须主人亲手做或把关）、过去每天完成了什么；时间线 = 每个项目一条线 + 节点 | Prasad 排自己的时间 |
 | 第四层 Agent Log | 当日 token 按 bot / 项目 / 来源（模型）分布、空耗、审计标记、项目推进一览、Agent log 原文 | 对账 |
 
@@ -31,6 +31,8 @@
 原有 `wb_agents` / `wb_reports` / `wb_token_usage` / `wb_agent_logs` / `wb_stage_events` 继续用。
 
 ## 接口：制定层与执行层，但没有权限边界
+
+完整的手册（每个功能的参数、示例、错误码）在 **`docs/API.md`**，本地可直接打开 `http://localhost:3120/api-docs`；机器可读版是 `GET /api/studio/manifest`。
 
 所有接口接受 **任一** 身份：owner 的 Supabase JWT，或 bot 的 bridge 令牌（`AGENT_TOKENS`：grokbot / codex / dev2 / hermes / openbot）。
 “制定层 / 执行层”只是用途分组，代码里不按角色拦：OpenBot 的 bot 同样能建产品、改项目阶段。
