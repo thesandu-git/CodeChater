@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, getOwner, json, readJson } from '../lib';
+import { db, getOwner, json, readJson } from '../_lib';
 import { intIn, optionalText, parseDay, today, uuidOrNull, wbAgent } from './_shared';
 
 function money(value: unknown, label: string): number | null {

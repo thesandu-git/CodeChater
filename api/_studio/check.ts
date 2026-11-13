@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, readJson } from '../lib';
+import { db, readJson } from '../_lib';
 import { addDays, json, requireIdentity, text, today, uuid } from './_shared';
 
 type Row = Record<string, any>;

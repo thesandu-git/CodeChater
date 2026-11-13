@@ -1,6 +1,6 @@
 import type { VercelRequest } from '@vercel/node';
 import { createHash } from 'node:crypto';
-import { db, env, readJson } from '../lib';
+import { db, env, readJson } from '../_lib';
 
 export const STAGES = ['idea', 'proposal', 'validated', 'build', 'testing', 'launch', 'revenue'] as const;
 export type Stage = (typeof STAGES)[number];

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getOwner, json } from '../lib';
-import { wbAgent } from '../workbench/_shared';
+import { getOwner, json } from '../_lib';
+import { wbAgent } from '../_workbench/_shared';
 
 export { json };
 

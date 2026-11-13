@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json } from './lib';
+import { json } from './_lib';
 
 /**
  * Vercel Hobby 每次部署最多 12 个 serverless 函数，所以 /api/studio/*、/api/workbench/*、

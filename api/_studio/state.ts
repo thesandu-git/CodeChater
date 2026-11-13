@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, readJson } from '../lib';
+import { db, readJson } from '../_lib';
 import {
   STAGES, addDays, dayStartIso, json, parseDay, requireIdentity, today,
 } from './_shared';

@@ -1,5 +1,5 @@
-import { makeRouter } from '../../server/router';
-import type { Handler } from '../../server/router';
-import * as routes from '../../server/studio';
+import { makeRouter } from '../_router';
+import type { Handler } from '../_router';
+import * as routes from '../_studio';
 
 export default makeRouter('studio', routes as unknown as Record<string, Handler>);

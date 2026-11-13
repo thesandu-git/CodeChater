@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, readJson } from '../lib';
+import { db, readJson } from '../_lib';
 import { DOC_KINDS, json, oneOf, requireIdentity, text, uuid } from './_shared';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

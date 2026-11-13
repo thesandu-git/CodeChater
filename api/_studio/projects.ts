@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, readJson } from '../lib';
+import { db, readJson } from '../_lib';
 import {
   PROJECT_STATUSES, STAGES, json, num, oneOf, requireIdentity, text, uuid,
 } from './_shared';

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, getOwner, json, readJson, validText } from '../server/lib';
+import { db, getOwner, json, readJson, validText } from './_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
