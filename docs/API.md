@@ -32,6 +32,15 @@ Content-Type: application/json
 - 返回 JSON；错误是 `{ "error": "中文说明", "detail"?: ... }`。
 - 状态码：`400` 参数错、`401` 没令牌/令牌无效、`404` 对象不存在、`405` 方法不对、`409` 重名、`503` 后端不可用。
 - 重名：产品或项目名字唯一（不区分大小写），撞了返回 `409`，别再重试同一个名字。
+- **带中文的 JSON 别直接塞进 `curl -d`**：git-bash / MSYS（Windows 上最常见的终端）会把非 ASCII 转成 `??`，看起来成功、写进库的是问号（实测踩到）。先把 body 写成 UTF-8 文件，再 `curl -H 'Content-Type: application/json' --data-binary @body.json ...`；或者用 PowerShell / Postman / Python 发请求。
+
+```bash
+# 反例（git-bash 下 "中文" 会变成 "??"）：curl -d '{"title":"中文标题"}' ...
+cat > body.json <<'JSON'
+{ "title": "中文标题", "plan": "第一步……" }
+JSON
+curl -X POST "$BASE/api/studio/tasks" -H "Authorization: Bearer <令牌>" -H 'Content-Type: application/json' --data-binary @body.json
+```
 
 ## 1. 功能索引
 
@@ -73,7 +82,13 @@ Content-Type: application/json
 | `tokens{byAgent,byProject,byModel,byDay}` | 近 30 天 token |
 | `audit[]`、`unaudited[]` | 当日审计与未交 log |
 | `history[]` | 30 天趋势（tokens / waste / advances / completed） |
+| `reports[]` | 最近 300 条汇报（历史都在这儿） |
+| `feed[]` | `day` 当天的汇报流（默认今天；只装当天，跨日归零） |
 | `medians[]` | 各阶段真实耗时中位数 |
+
+`?day=` 只挪“按日期”的那几块：`audit`、`logs`、`feed`、`calendar` 的基准日、`tokens` 的 30 天窗口 `[day-29, day]`、`history` 的 30 天。产品 / 项目 / 任务 / 里程碑 / 文档是全量，不随 `day` 变。
+
+`feed` 只装 `state.day` 当天的汇报（日界线 `Asia/Colombo`），过了午夜就是空的——历史汇报都在 `reports[]` 里，不是丢数据。
 
 ## 3. 产品
 
@@ -128,6 +143,7 @@ curl -X PATCH "$BASE/api/studio/projects?id=$PID" -H "Authorization: Bearer $TOK
 ## 5. 任务（Kanban 实体）
 
 `GET /api/studio/tasks?project=<uuid>&status=<status>` 列表；
+`GET /api/studio/tasks?task=<uuid>`（或 `?id=<uuid>`）取单条，找不到返回 `404`；
 `POST` 建；`PATCH ?id=` 改；`DELETE ?id=` 删（子任务与历史一起删）。
 
 | 字段 | 类型 | 说明 |
@@ -247,6 +263,7 @@ curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "Authorization: Bearer $TOKEN"
 三条容易踩的：
 
 - **token 记账是覆盖，不是累加**：同一 `agent × day × project` 再报一次会覆盖上一次。一天只报一次当天总量，别报碎片。
+- 当天总量要拆成 `tokens_in` / `tokens_out` 两个数（空耗放 `waste_tokens`）。`total_tokens`、`tokens` 这类字段不在契约里：`400` 且告诉你正确字段名，以前是静默记成 `0`。body 里一个可识别的数字都没有，同样 `400`。
 - `waste_tokens` 必须 ≤ `tokens_in + tokens_out`，否则 `400`。
 - 汇报 `outcome=advanced` 会刷新项目“最后推进时间”；`blocked=true` 会把项目置为 `blocked`。
 
@@ -298,7 +315,7 @@ curl -s -X POST "$BASE/api/studio/agents" -H "Authorization: Bearer $TOKEN" \
 | 列表：在线状态、未完成单数、有没有令牌 | `GET /api/studio/agents`（`?kind=relay`、`?capability=code`、`?all=1` 含已下线） |
 | 心跳（在线状态来源） | `PATCH /api/studio/agents?id=<id>` `{"heartbeat":true}` |
 | 改资料 | 同上，只传要改的字段 |
-| 换令牌（旧令牌立刻失效） | 同上 `{"rotate_token":true}` |
+| 换令牌（旧令牌立刻失效） | `POST /api/studio/agents` body `{"id":"<id>","rotate_token":true}`（PATCH 也支持并返回新令牌，但口径以 POST 为准） |
 | 下线（软删，历史保留） | `DELETE /api/studio/agents?id=<id>` |
 
 ### 12.2 派单：队列里只放一行「有任务」
@@ -358,7 +375,7 @@ curl -s -X PATCH "$BASE/api/studio/dispatch?id=<单 id>" \
 2. （干活）
 3. POST /api/studio/report               # outcome=advanced
 4. PATCH /api/studio/tasks?id=<id>          # status=completed
-5. POST /api/studio/tokens               # 当天总量
+5. POST /api/studio/tokens               # 当天总量：tokens_in / tokens_out
 6. POST /api/studio/logs                 # 收工交 log
 卡住：POST /api/studio/check {task_id, reason}
 ```

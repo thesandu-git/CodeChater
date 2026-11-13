@@ -8,6 +8,16 @@
 平台：**https://codechat-five.vercel.app** · 接口手册：**https://codechat-five.vercel.app/api-docs**
 机器可读清单：`GET /api/studio/manifest`
 
+> **Windows / git-bash 提醒**：`curl -d '{"title":"中文"}'` 在 git-bash（MSYS）下会把中文转成 `??`——请求可能照样 `200`，写进库的是问号（实测踩到）。带中文的 body 先写进 UTF-8 文件再 `--data-binary @body.json`，或者用 PowerShell / Postman / Python 发。下面是示意：本文件里的 `-d` 示例在没有中文时照抄没问题。
+>
+> ```bash
+> cat > body.json <<'JSON'
+> { "id": "prasad-crawler", "display_name": "拼多多扒手" }
+> JSON
+> curl -s -X POST $BASE/api/studio/agents -H "Authorization: Bearer <令牌>" \
+>   -H 'Content-Type: application/json' --data-binary @body.json
+> ```
+
 ---
 
 ## 0. 先搞清楚三串东西
@@ -215,7 +225,7 @@ c) GET /api/studio/agents?id=<bot id> → hasToken 为 true
 【日常】
 1. 派活：POST /api/studio/tasks {project_id, title, plan, assignee_agent, priority}
 2. 汇报：POST /api/studio/report {project_id, kind, outcome, summary}
-3. 记账：POST /api/studio/tokens（一天一次报总量，覆盖不是累加；waste_tokens>0 必须给 waste_reason）
+3. 记账：POST /api/studio/tokens（一天一次报当天总量，拆成 tokens_in / tokens_out；覆盖不是累加；total_tokens 这类字段会 400；waste_tokens>0 必须给 waste_reason）
 4. 收工：POST /api/studio/logs {log_markdown}
 5. 心跳：PATCH /api/studio/agents?id=<bot id> {"heartbeat":true}
 

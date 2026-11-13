@@ -34,7 +34,7 @@ npm run dev:local                # 本地 http://localhost:3120/
 npx vercel deploy --prod         # 或推 main 由 Vercel 部署
 ```
 
-上线前数据库要有 `supabase/migrations/` 里的四个迁移（按顺序、幂等）。环境变量见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
+上线前数据库要有 `supabase/migrations/` 里的五个迁移（按顺序、幂等）。环境变量见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
 
 ## 已经拆掉的东西
 
