@@ -17,6 +17,18 @@ This scaffold is a generic message relay. It does not make the current Codex cha
 7. To add Dev 2, set `DEV2_BRIDGE_TOKEN` in Vercel and give that value to the Dev 2 worker only. Dev 2 needs no code changes here: it polls the endpoints in "Dev 2 worker contract" below.
 8. Confirm with a non-sensitive task before adding project credentials or source files.
 
+## Studio（四层工作台 + 值班室）与派活
+
+同一部署里的 `/studio`：产品与进度、Kanban、日历/时间线、Agent Log，加一个「值班」页（bot 登记 + 派单队列 + 传信员待命）。
+
+**怎么安排任务，看 [`AGENTS.md`](AGENTS.md)**（给 bot 读的速查），细节在 [`docs/DELEGATION.md`](docs/DELEGATION.md)。
+接口手册：[`docs/API.md`](docs/API.md)（线上 https://codechat-five.vercel.app/api-docs ）；部署与环境变量：[`docs/DEPLOY.md`](docs/DEPLOY.md)。
+
+- 接入：`POST /api/studio/agents`，带引导令牌 `REGISTRY_TOKEN` 登记一次，拿回自己的 `wbt_` 令牌（只显示一次）
+- 派活：`POST /api/studio/tasks` 带 `assignee_agent` → 自动入队一行「有任务」；传信员 `GET /api/studio/inbox` 取走并叫醒它
+- 执行：被叫醒的 bot 用 `GET /api/studio/prompt?task=<id>` 取正文，做完 `PATCH /api/studio/tasks?id=<id>`
+- 旧的 bridge 令牌（`GROKBOT_BRIDGE_TOKEN` 等）在这个项目里是空值，已改走自助登记；详见 `docs/DEPLOY.md`
+
 ## AI 工作台（/workbench）
 
 同一部署里的第二个页面：追踪产品预案与项目数量、项目卡点、概念到变现的剩余时间，以及每个 bot 每天的 token 消耗和 Agent log。

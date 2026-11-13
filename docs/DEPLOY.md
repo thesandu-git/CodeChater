@@ -30,13 +30,24 @@ select to_regclass('public.wb_dispatches') as dispatches,
 | `SUPABASE_ANON_KEY` | 是 | 页面登录用 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 是 | 服务端读写 `wb_*`（**不能**放前端） |
 | `CONSOLE_OWNER_ID` | 是 | 控制台 owner 的 Supabase 用户 id |
-| `GROKBOT_BRIDGE_TOKEN` | 建议 | 旧 bridge 与 `/api/workbench/*` 用 |
-| `CODEX_BRIDGE_TOKEN` | 建议 | 同上 |
-| `DEV2_BRIDGE_TOKEN` | 建议 | 同上 |
-| `HERMES_BRIDGE_TOKEN` | 可选 | 让 Hermes 用固定令牌上报；不建也能靠自助登记令牌 |
+| `REGISTRY_TOKEN` | 推荐 | 引导令牌：只用于 `POST /api/studio/agents` 建新 bot（≥16 位）；空值等于没配 |
+| `GROKBOT_BRIDGE_TOKEN` | 可选 | 旧 bridge 接口用；**留空就别指望它**（见下） |
+| `CODEX_BRIDGE_TOKEN` | 可选 | 同上 |
+| `DEV2_BRIDGE_TOKEN` | 可选 | 同上 |
+| `HERMES_BRIDGE_TOKEN` | 可选 | 同上 |
 | `OPENBOT_BRIDGE_TOKEN` | 可选 | 同上 |
 
-新增的 bot **不需要**再加环境变量：它们自己 `POST /api/studio/agents` 登记，拿一次性令牌。
+新增的 bot **不需要**再加环境变量：自己 `POST /api/studio/agents` 登记，拿一次性令牌。
+
+### 关于那几个 bridge 令牌：空值等于没有
+
+实测这个项目里 `DEV2_BRIDGE_TOKEN` / `GROKBOT_BRIDGE_TOKEN` / `CODEX_BRIDGE_TOKEN` 的值是**空字符串**，
+`sha256("")` 永远匹配不上，所以拿它们调接口一律 401。两个选择：
+
+1. **推荐**：别管它们，全走自助登记（`REGISTRY_TOKEN` + `POST /api/studio/agents`）。
+2. 要用旧 bridge 令牌：去 Vercel 把值真正填上再重新部署（改环境变量不会自动生效）。
+
+`/api/workbench/report|tokens|logs` 仍只认 **bot 身份**（bridge 令牌或自助登记令牌），owner JWT 不行。
 
 ## 3. 函数时长（长轮询必需）
 

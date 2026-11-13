@@ -258,6 +258,15 @@ curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "Authorization: Bearer $TOKEN"
 
 `POST /api/studio/agents`
 
+两扇门，任选其一：
+
+| 门 | 令牌 | 说明 |
+|---|---|---|
+| 已有身份 | owner 的登录 JWT，或任一已登记 bot 的令牌 | 权限与其余接口相同 |
+| 引导令牌 | 环境变量 `REGISTRY_TOKEN` | **只能 POST 建新 bot**；GET/PATCH/DELETE 一律 403，已存在的 id 返回 409 |
+
+引导令牌专治「新 bot 没有令牌 → 不能登记 → 永远没有令牌」的死循环：机器人拿到它登记一次，拿回自己的 `wbt_` 令牌，然后把它丢掉。
+
 | 字段 | 必填 | 说明 |
 |---|---|---|
 | `id` | 是 | 小写字母/数字/`_`/`-`，2–32 位，全站唯一 |

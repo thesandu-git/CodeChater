@@ -2,12 +2,15 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomBytes } from 'node:crypto';
 import { db, readJson } from '../_lib';
 import { hashToken } from '../_workbench/_shared';
-import { json, num, oneOf, requireIdentity, text } from './_shared';
+import { bearerToken, identify, json, num, oneOf, registryToken, text } from './_shared';
 
 /**
- * bot 登记接口。
- * 任何身份（owner 的 Supabase JWT，或任一已登记 bot 的令牌）都能登记新 bot——
- * 这里不做角色限制，和其余 Studio 接口一致。
+ * bot 登记接口——自助接入的唯一入口。
+ *
+ * 两扇门：
+ *   1) 已有的任一有效令牌（owner 的 Supabase JWT，或任一已登记 bot 的令牌），权限与其余接口相同；
+ *   2) REGISTRY_TOKEN：只用于第一次登记，只能 POST 建新 bot，不能读、不能改、不能换别人的令牌。
+ * 第二扇门解决“新 bot 没有令牌 → 不能登记 → 永远没有令牌”的死循环，且不引入任何岗位权限。
  * 登记时返回一次明文令牌，库里只存 sha256；轮换用 PATCH {rotate_token:true}。
  */
 
@@ -79,8 +82,21 @@ async function revokeToken(agentId: string): Promise<void> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const who = await requireIdentity(req, res);
-  if (!who) return;
+  const who = await identify(req);
+  const registry = !who && Boolean(registryToken()) && bearerToken(req) === registryToken();
+  if (!who && !registry) {
+    json(res, 401, {
+      error: '需要一个令牌：已有 bot 的令牌、owner 登录，或（仅登记时）REGISTRY_TOKEN。',
+      hint: '第一次接入先用引导令牌 POST 登记，拿到自己的令牌后再调其它接口。',
+    });
+    return;
+  }
+  if (!who && req.method !== 'POST') {
+    return json(res, 403, {
+      error: '引导令牌只能用来 POST 登记新 bot。',
+      hint: '登记完立刻用返回的自己的令牌，引导令牌别再用于别的接口。',
+    });
+  }
   try {
     if (req.method === 'GET') {
       const id = field(req.query.id, 32);
@@ -152,7 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         relay_agent: field(body.relay_agent, 32) ?? null,
         heartbeat_s: num(body.heartbeat_s, 15, 3600) ?? 60,
         notes: field(body.notes, 1000) ?? null,
-        registered_by: who.id,
+        registered_by: who?.id ?? 'registry',
         updated_at: new Date().toISOString(),
       };
       for (const key of ['platform', 'role', 'contact', 'endpoint', 'relay_agent', 'notes'] as const) {
@@ -162,6 +178,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const before = await one(`wb_agents?id=eq.${encodeURIComponent(id)}&select=id`);
+      if (registry && before) {
+        return json(res, 409, {
+          error: '这个 id 已经登记过。',
+          hint: '换令牌要用它自己的令牌 PATCH /api/studio/agents?id=<id> {rotate_token:true}。',
+        });
+      }
       const created = await db('wb_agents?on_conflict=id&select=*', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=representation' },

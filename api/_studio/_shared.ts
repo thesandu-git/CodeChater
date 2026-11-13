@@ -14,6 +14,23 @@ export const DOC_KINDS = ['research', 'spec', 'report', 'note'] as const;
 
 export type Identity = { role: 'owner' | 'agent'; id: string };
 
+/** Bearer 里的原始令牌，没有就是空串。 */
+export function bearerToken(req: VercelRequest): string {
+  const header = req.headers.authorization;
+  return typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+}
+
+/**
+ * 引导令牌：只用于第一次登记（POST /api/studio/agents），别的接口一律不认。
+ * 没配、太短、空的都当不存在——空环境变量绝不会变成可匹配的密钥。
+ */
+export function registryToken(): string | null {
+  const value = process.env.REGISTRY_TOKEN;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length >= 16 ? trimmed : null;
+}
+
 /**
  * 任何身份都能调任何一层：owner 的 Supabase JWT，或任一 bot 的 bridge 令牌。
  * 这里不做角色区分——限制只存在于“谁拿到令牌”，不在接口层。
