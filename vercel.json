@@ -10,7 +10,7 @@
   ],
   "headers": [
     {
-      "source": "/docs/API.md",
+      "source": "/api-docs",
       "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
     }
   ]
