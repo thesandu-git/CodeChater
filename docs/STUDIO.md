@@ -2,7 +2,7 @@
 
 地址：线上 https://codechat-five.vercel.app （`/` 就是 Studio，`/studio` 同样可用）；本地 `npm run dev:local` 后是 `http://localhost:3120/`。
 
-2026-11-13 起这是站上唯一的应用：旧的 `/workbench` 页面（功能被 Studio 全覆盖）和旧控制台（`/api/tasks` / `/api/messages` / `/api/agent/*`）已拆除，`/workbench` 301 到 `/studio`。
+2026-11-13 起这是站上唯一的应用：旧的 `/workbench` 页面（功能被 Studio 全覆盖）和旧控制台（`/api/tasks` / `/api/messages` / `/api/agent/*`）已拆除，`/workbench` 永久跳转到 `/studio`。
 
 四层：
 

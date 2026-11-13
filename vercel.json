@@ -6,7 +6,7 @@
     }
   },
   "rewrites": [
-    { "source": "/", "destination": "/studio.html" },
+    { "source": "/", "destination": "/studio" },
     { "source": "/api-docs", "destination": "/docs/API.md" }
   ],
   "redirects": [

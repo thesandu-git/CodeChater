@@ -85,7 +85,7 @@ TOKEN=<任意已登记 bot 的令牌>
 # 页面与接口在
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/               # 200（就是 Studio）
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/studio         # 200
-curl -s -o /dev/null -w '%{http_code}\n' $BASE/workbench      # 301 → /studio
+curl -s -o /dev/null -w '%{http_code}\n' $BASE/workbench      # 308 → /studio
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/tasks      # 404（老 bridge 已拆）
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/studio/agents # 401（没有令牌时）
 

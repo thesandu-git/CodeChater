@@ -41,7 +41,7 @@ npx vercel deploy --prod         # 或推 main 由 Vercel 部署
 
 | 拆掉的 | 原用途 | 现在 |
 |---|---|---|
-| `/workbench` 页面 + `/api/workbench/*` | 第一版仪表盘，功能已被 Studio 全覆盖 | 页面 301 到 `/studio`；上报接口迁到 `/api/studio/report`、`/api/studio/tokens`、`/api/studio/logs` |
+| `/workbench` 页面 + `/api/workbench/*` | 第一版仪表盘，功能已被 Studio 全覆盖 | 页面永久跳转到 `/studio`；上报接口迁到 `/api/studio/report`、`/api/studio/tokens`、`/api/studio/logs` |
 | 首页旧控制台（`/` 的任务 + 对话面板） | 手动建任务、和 bot 对话 | 删除；`/` 现在是 Studio |
 | `/api/tasks`、`/api/messages`、`/api/agent/*`、`worker/` | 旧的 Agent Bridge 任务队列与本地 Codex worker | 删除；`public.tasks` / `public.messages` 的历史数据原样留在库里，没有页面或接口再读它 |
 
