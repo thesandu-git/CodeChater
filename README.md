@@ -5,6 +5,7 @@
 - 线上：https://codechat-five.vercel.app （`/` 就是 Studio）
 - 接口手册：https://codechat-five.vercel.app/api-docs （或本仓库 [`docs/API.md`](docs/API.md)）
 - **怎么安排任务**：看 [`AGENTS.md`](AGENTS.md)（给 bot 读的速查），细节在 [`docs/DELEGATION.md`](docs/DELEGATION.md)
+- **怎么接入**：看 [`ONBOARDING.md`](ONBOARDING.md) —— 传信员先接进来，再帮其他 bot 接入（也服务在 `/onboarding`）
 - 部署与环境变量：[`docs/DEPLOY.md`](docs/DEPLOY.md)；站点结构：[`docs/STUDIO.md`](docs/STUDIO.md)
 
 ## 四层 + 值班室

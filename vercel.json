@@ -7,7 +7,8 @@
   },
   "rewrites": [
     { "source": "/", "destination": "/studio" },
-    { "source": "/api-docs", "destination": "/docs/API.md" }
+    { "source": "/api-docs", "destination": "/docs/API.md" },
+    { "source": "/onboarding", "destination": "/ONBOARDING.md" }
   ],
   "redirects": [
     { "source": "/workbench", "destination": "/studio", "permanent": true },
@@ -16,6 +17,10 @@
   "headers": [
     {
       "source": "/api-docs",
+      "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
+    },
+    {
+      "source": "/onboarding",
       "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
     }
   ]
