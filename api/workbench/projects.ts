@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const owner = await getOwner(req);
     if (!owner) {
       // 只读例外：带 agent 令牌的 bot 可以看项目板，方便决定下一步报什么。
-      const agent = req.method === 'GET' ? wbAgent(req) : null;
+      const agent = req.method === 'GET' ? await wbAgent(req) : null;
       if (!agent) return json(res, 401, { error: 'Sign in required.' });
       const response = await db(
         'wb_project_board?select=id,name,stage,status,owner_agent,days_in_stage,days_since_progress,is_stuck,blocked_reason,last_report,last_report_at&status=neq.killed&limit=200',

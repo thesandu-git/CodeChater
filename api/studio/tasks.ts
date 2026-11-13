@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { db, readJson } from '../_lib';
+import { closeDispatches, queueDispatch } from './_dispatch';
 import {
   PRIORITIES, TASK_STATUSES, json, num, oneOf, requireIdentity, text, uuid,
 } from './_shared';
@@ -63,7 +64,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           note: '任务创建',
         }),
       });
-      return json(res, 201, rows[0]);
+
+      // 有负责人就默认派单（body.dispatch = false 可关掉）：
+      // 队列里只放一行「有任务」，等传信员取走再去叫醒 bot。
+      let dispatch: Record<string, unknown> | null = null;
+      if (body.dispatch !== false && row.assignee_agent && status !== 'completed') {
+        try {
+          const queued = await queueDispatch({
+            taskId: rows[0].id,
+            targetAgent: String(row.assignee_agent),
+            createdBy: who.id,
+            note: '任务创建时自动派单',
+          });
+          dispatch = 'row' in queued ? queued.row : { error: queued.error };
+        } catch {
+          dispatch = null;
+        }
+      }
+
+      return json(res, 201, { ...rows[0], dispatch });
     }
 
     if (req.method === 'PATCH') {
@@ -141,6 +160,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }),
         });
       }
+
+      // 换负责人 → 给新负责人重新派一单；任务完成 → 把它名下未完成的派单收尾
+      const nextAssignee = rows[0].assignee_agent ?? null;
+      if (body.assignee_agent !== undefined && nextAssignee && nextAssignee !== task.assignee_agent
+        && body.dispatch !== false && rows[0].status !== 'completed') {
+        try {
+          await queueDispatch({
+            taskId: id, targetAgent: nextAssignee, createdBy: who.id, note: '负责人变更',
+          });
+        } catch { /* 派单失败不该挡住任务更新 */ }
+      }
+      if (rows[0].status === 'completed' && task.status !== 'completed') {
+        try {
+          await closeDispatches(id, 'acked', '任务已完成');
+        } catch { /* 同上 */ }
+      }
+
       return json(res, 200, rows[0]);
     }
 

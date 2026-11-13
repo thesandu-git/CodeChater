@@ -782,6 +782,109 @@ function renderLog() {
     : '<div class="empty">今天还没有 Agent log。</div>';
 }
 
+// ── 第五层：值班室（bot 登记 + 传信员待命 + 派单队列）─────────
+const DISPATCH_STATUS = {
+  pending: ['待领取', 'warn'], claimed: ['已领取', ''], delivered: ['已送达', 'good'],
+  acked: ['已完成', 'good'], expired: ['已过期', ''], cancelled: ['已取消', ''],
+};
+const KIND_LABEL = { bot: 'bot', relay: '传信员', human: '人' };
+
+function ago(seconds) {
+  if (seconds === null || seconds === undefined) return '从未';
+  const s = Math.max(0, Number(seconds) || 0);
+  if (s < 60) return `${s} 秒前`;
+  if (s < 3600) return `${Math.round(s / 60)} 分钟前`;
+  if (s < 86400) return `${Math.round(s / 3600)} 小时前`;
+  return `${Math.round(s / 86400)} 天前`;
+}
+
+function renderRelay() {
+  const relay = state.view?.relay || { agents: [], dispatches: [], counts: {} };
+  const c = relay.counts || {};
+  const agents = (relay.agents || []).slice().sort((a, b) =>
+    (b.active === false ? 0 : 1) - (a.active === false ? 0 : 1) || (b.online ? 1 : 0) - (a.online ? 1 : 0) || a.id.localeCompare(b.id));
+  const onlineBots = agents.filter((a) => a.kind === 'bot' && a.online).length;
+  const onlineRelays = agents.filter((a) => a.kind === 'relay' && a.online).length;
+
+  $('relayKpis').innerHTML = [
+    ['待领取', fmt(c.pending || 0), '等传信员来取', (c.pending || 0) ? 'warn' : 'good'],
+    ['已领取', fmt(c.claimed || 0), '已叫醒、未回执', ''],
+    ['已送达', fmt(c.delivered || 0), '等 bot 自己做完', ''],
+    ['在线 bot', fmt(onlineBots), `共 ${c.bots || 0} 个登记`, ''],
+    ['在线传信员', fmt(onlineRelays), `共 ${c.relays || 0} 个登记`, onlineRelays ? 'good' : ''],
+    ['登记总数', fmt(c.total || agents.length), `${(c.humans || 0)} 个人`, ''],
+  ].map(([label, value, sub, tone]) => `<div class="kpi ${tone}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`).join('');
+
+  $('agentTable').innerHTML = agents.length ? `<div class="table-wrap"><table>
+    <thead><tr><th>名字</th><th>类型</th><th>平台</th><th>能力</th><th>代它待命</th><th>状态</th><th class="num">未完成单</th><th>令牌</th><th></th></tr></thead>
+    <tbody>${agents.map((a) => `<tr>
+      <td><b>${esc(a.display_name || a.id)}</b><div class="sub mono">${esc(a.id)}</div></td>
+      <td><span class="tag ${a.kind === 'relay' ? 'warn' : 'good'}">${esc(KIND_LABEL[a.kind] || a.kind)}</span></td>
+      <td>${esc(a.platform || '—')}</td>
+      <td>${(a.capabilities || []).map((x) => `<span class="tag">${esc(x)}</span>`).join('') || '—'}</td>
+      <td>${a.relay_agent ? esc(agentName(a.relay_agent)) : '—'}</td>
+      <td>${a.active === false
+        ? '<span class="tag bad">已下线</span>'
+        : a.online
+          ? `<span class="tag good">在线</span><div class="sub">${ago(a.seconds_since_seen)}</div>`
+          : `<span class="tag warn">离线</span><div class="sub">${ago(a.seconds_since_seen)}</div>`}</td>
+      <td class="num">${fmt(a.open_dispatches || 0)}</td>
+      <td>${a.hasToken ? '<span class="tag good">有</span>' : '<span class="tag">无</span>'}</td>
+      <td class="row-btns">
+        <button class="ghost small" data-rotate="${esc(a.id)}">换令牌</button>
+        <button class="ghost small" data-retire="${esc(a.id)}">下线</button>
+      </td>
+    </tr>`).join('')}</tbody></table></div>`
+    : '<div class="empty">还没有登记任何 bot。用右上「+ bot」或让 bot 自己 POST /api/studio/agents。</div>';
+
+  const dispatches = relay.dispatches || [];
+  $('dispatchTable').innerHTML = dispatches.length ? `<div class="table-wrap"><table>
+    <thead><tr><th>队列标题（只这一行字）</th><th>交给</th><th>传信员</th><th>状态</th><th>优先</th><th>入队</th><th></th></tr></thead>
+    <tbody>${dispatches.map((d) => {
+      const [label, tone] = DISPATCH_STATUS[d.status] || [d.status, ''];
+      return `<tr>
+        <td><b>${esc(d.headline)}</b><div class="sub">${esc(d.projectName || '')}${d.task_id ? ` · 任务 <span class="mono">${esc(String(d.task_id).slice(0, 8))}</span>` : ''}</div></td>
+        <td>${esc(d.targetName || d.target_agent)}</td>
+        <td>${esc(d.relayName || d.relay_agent || '未指定')}</td>
+        <td><span class="tag ${tone}">${esc(label)}</span>${d.attempts > 1 ? `<div class="sub">取过 ${d.attempts} 次</div>` : ''}</td>
+        <td>${esc(PRIORITY[d.priority] || d.priority)}</td>
+        <td>${shortDate((d.created_at || '').slice(0, 10))}</td>
+        <td class="row-btns">
+          ${d.status === 'claimed' ? `<button class="ghost small" data-mark="delivered" data-id="${esc(d.id)}">已送达</button>` : ''}
+          ${d.status === 'delivered' ? `<button class="ghost small" data-mark="acked" data-id="${esc(d.id)}">已完成</button>` : ''}
+          <button class="ghost small" data-cancel="${esc(d.id)}">取消</button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`
+    : '<div class="empty">队列空着。任务派给谁，这里就会出现一行「有任务」。</div>';
+
+  const lines = [
+    '# 传信员待命：挂着直到有单（wait 最多 45 秒），或到期返回空',
+    '# cover=1：也代领「没指定传信员」的单；只管自己名下的就去掉',
+    'curl -s "$BASE/api/studio/inbox?relay=<传信员 id>&wait=25&take=1&cover=1" -H "Authorization: Bearer $TOKEN"',
+    '',
+    '# 叫醒 bot 后回执（不搬运正文）',
+    'curl -s -X PATCH "$BASE/api/studio/dispatch?id=<单 id>" -H "Authorization: Bearer $TOKEN" \\',
+    '  -H "Content-Type: application/json" -d \'{"status":"delivered"}\'',
+    '',
+    '# bot 自己去取正文',
+    'curl -s "$BASE/api/studio/prompt?task=<任务 id>" -H "Authorization: Bearer $BOT_TOKEN"',
+    '',
+    '# 报到 / 心跳（在线状态靠这个）',
+    'curl -s -X PATCH "$BASE/api/studio/agents?id=<bot id>" -H "Authorization: Bearer $TOKEN" \\',
+    '  -H "Content-Type: application/json" -d \'{"heartbeat":true}\'',
+  ];
+  const pre = document.createElement('pre');
+  pre.className = 'snippet';
+  pre.textContent = lines.join('\n');
+  const host = `http://${location.host}`;
+  const note = document.createElement('p');
+  note.className = 'sub';
+  note.style.marginBottom = '10px';
+  note.textContent = `BASE = ${host}；TOKEN 是这个 bot 登记时拿到的那串。完整契约见 /api-docs。`;
+  $('relaySnippet').replaceChildren(note, pre);
+}
+
 // ── 渲染总入口 ─────────────────────────────────────────────
 function renderAll() {
   renderPrails();
@@ -791,6 +894,7 @@ function renderAll() {
     if (state.calMode === 'calendar') renderCalendar(); else renderTimeline();
   }
   if (state.tab === 'log') renderLog();
+  if (state.tab === 'relay') renderRelay();
 }
 
 const TAB_META = {
@@ -798,12 +902,13 @@ const TAB_META = {
   kanban: ['第二层', 'Kanban', '+ 任务', () => newTaskForm()],
   calendar: ['第三层', '日历 / 时间线', '+ 日程', () => newScheduleForm()],
   log: ['第四层', 'Agent Log', '刷新', () => load()],
+  relay: ['值班室', 'bot 登记 · 传信员待命', '+ 派单', () => newDispatchForm()],
 };
 
 function switchTab(tab) {
   state.tab = tab;
   document.querySelectorAll('.rail-btn[data-tab]').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === tab));
-  ['products', 'kanban', 'calendar', 'log'].forEach((key) => $(`layer-${key}`).classList.toggle('hidden', key !== tab));
+  ['products', 'kanban', 'calendar', 'log', 'relay'].forEach((key) => $(`layer-${key}`).classList.toggle('hidden', key !== tab));
   const [eyebrow, title, action, fn] = TAB_META[tab];
   $('layerEyebrow').textContent = eyebrow;
   $('layerTitle').textContent = title;
@@ -929,11 +1034,151 @@ function newScheduleForm() {
   });
 }
 
+// ── 值班室表单 ─────────────────────────────────────────────
+function showTokenPanel(res) {
+  const token = res?.token;
+  const name = res?.agent?.display_name || res?.agent?.id || '';
+  if (!token) {
+    $('modalError').textContent = res?.tokenNote || '这次没有返回令牌。';
+    return;
+  }
+  openSheet('令牌（只显示这一次）', `<div class="stack">
+    <p class="sub">${esc(name)} 的令牌：</p>
+    <textarea id="tokenBox" class="mono" readonly rows="3">${esc(token)}</textarea>
+    <div class="row-actions">
+      <button id="copyToken" class="primary" type="button">复制</button>
+      <button id="tokenDone" class="ghost" type="button">我已存好</button>
+    </div>
+    <p class="hint">库里只存哈希，关掉这个窗口就再也看不到。要换新的：登记表里点「换令牌」。</p>
+  </div>`);
+  $('copyToken').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(token);
+      $('copyToken').textContent = '已复制';
+    } catch {
+      $('tokenBox').select();
+      $('modalError').textContent = '浏览器不让自动复制，已选中，按 Ctrl+C。';
+    }
+  });
+  $('tokenDone').addEventListener('click', closeSheet);
+}
+
+function registerAgentForm(kind) {
+  const isRelay = kind === 'relay';
+  const relays = (state.view?.relay?.agents || []).filter((a) => a.kind === 'relay' && a.active !== false);
+  openSheet(isRelay ? '登记传信员' : '登记 bot', `<form class="stack" id="registerAgent">
+    <div class="row2">
+      <label>id（唯一，小写字母数字）<input name="id" required pattern="[a-z0-9_\\-]{2,32}" placeholder="${isRelay ? 'relay-openbot' : 'prasad-crawler'}" /></label>
+      <label>显示名<input name="display_name" maxlength="80" /></label>
+    </div>
+    <div class="row2">
+      <label>平台<input name="platform" maxlength="40" placeholder="OpenBot / Hermes / Codex CLI" /></label>
+      <label>角色<input name="role" maxlength="80" placeholder="执行 / 汇报 / 待命" /></label>
+    </div>
+    <label>能力（逗号分隔）<input name="capabilities" maxlength="300" placeholder="code, crawl, research" /></label>
+    <div class="row2">
+      <label>联系方式<input name="contact" maxlength="200" placeholder="在平台上怎么找到它：@handle / 群名 / URL" /></label>
+      <label>心跳间隔（秒）<input name="heartbeat_s" type="number" min="15" max="3600" value="60" /></label>
+    </div>
+    ${isRelay ? '' : `<label>由谁代它待命<select name="relay_agent"><option value="">不指定（平台直连）</option>${relays.map((r) => `<option value="${esc(r.id)}">${esc(r.display_name || r.id)}</option>`).join('')}</select></label>`}
+    <label>备注<textarea name="notes" maxlength="1000"></textarea></label>
+    <button class="primary" type="submit">登记并取令牌</button>
+    <p class="hint">${isRelay ? '传信员自己也要有令牌，才能挂着 inbox 等单。' : '登记后返回的令牌要存进这个 bot 的配置。'}</p>
+  </form>`);
+  $('registerAgent').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const body = Object.fromEntries(form.entries());
+    body.kind = kind;
+    body.heartbeat_s = Number(body.heartbeat_s) || 60;
+    if (isRelay) delete body.relay_agent;
+    try {
+      const res = await api('/api/studio/agents', { method: 'POST', body: JSON.stringify(body) });
+      showTokenPanel(res);
+      await load();
+    } catch (error) { $('modalError').textContent = error.message; }
+  });
+}
+
+function newDispatchForm() {
+  const tasks = (state.view?.tasks || []).filter((t) => t.status !== 'completed');
+  const agents = (state.view?.relay?.agents || []).filter((a) => a.active !== false);
+  const bots = agents.filter((a) => a.kind !== 'relay');
+  const relays = agents.filter((a) => a.kind === 'relay');
+  openSheet('手动派单', `<form class="stack" id="newDispatch">
+    <label>任务<select name="task_id">${tasks.map((t) => `<option value="${esc(t.id)}">${esc(t.projectName ? `${t.projectName} · ` : '')}${esc(t.title)}</option>`).join('') || '<option value="">没有未完成的任务</option>'}</select></label>
+    <div class="row2">
+      <label>交给<select name="target_agent">${bots.map((b) => `<option value="${esc(b.id)}">${esc(b.display_name || b.id)}</option>`).join('') || '<option value="">先登记 bot</option>'}</select></label>
+      <label>优先级<select name="priority"><option value="high">高</option><option value="medium" selected>中</option><option value="low">低</option></select></label>
+    </div>
+    <label>传信员<select name="relay_agent"><option value="">用 bot 绑定的那个</option>${relays.map((r) => `<option value="${esc(r.id)}">${esc(r.display_name || r.id)}</option>`).join('')}</select></label>
+    <label>队列标题（留空自动生成）<input name="headline" maxlength="300" placeholder="【项目】任务标题" /></label>
+    <label>提示（可选）<input name="hint" maxlength="500" placeholder="例如：先看 README 再动手" /></label>
+    <button class="primary" type="submit">入队</button>
+    <p class="hint">队列只带一行标题和任务 id；正文由 bot 接单后自己取。</p>
+  </form>`);
+  $('newDispatch').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const body = Object.fromEntries(form.entries());
+    if (!body.task_id) { $('modalError').textContent = '没有可派的任务。'; return; }
+    if (!body.target_agent) { $('modalError').textContent = '先登记一个 bot。'; return; }
+    for (const key of ['headline', 'hint', 'relay_agent']) if (!body[key]) delete body[key];
+    try {
+      await api('/api/studio/dispatch', { method: 'POST', body: JSON.stringify(body) });
+      closeSheet();
+      await load();
+    } catch (error) { $('modalError').textContent = error.message; }
+  });
+}
+
+async function rotateToken(id) {
+  const res = await api(`/api/studio/agents?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ rotate_token: true }),
+  });
+  showTokenPanel(res);
+  await load();
+}
+
+async function retireAgent(id) {
+  await api(`/api/studio/agents?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await load();
+}
+
+async function markDispatch(id, status) {
+  await api(`/api/studio/dispatch?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+  await load();
+}
+
+async function cancelDispatch(id) {
+  await api(`/api/studio/dispatch?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await load();
+}
+
 // ── 事件绑定 ───────────────────────────────────────────────
 document.querySelectorAll('.rail-btn[data-tab]').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 $('allProducts').addEventListener('click', () => { state.product = null; renderAll(); });
 $('refresh').addEventListener('click', () => load().catch((e) => { $('bootError').textContent = e.message; $('bootError').classList.remove('hidden'); }));
 $('dayInput').addEventListener('change', () => load().catch(() => {}));
+$('registerRelay').addEventListener('click', () => registerAgentForm('relay'));
+$('registerBot').addEventListener('click', () => registerAgentForm('bot'));
+$('manualDispatch').addEventListener('click', () => newDispatchForm());
+$('agentTable').addEventListener('click', (event) => {
+  const rotate = event.target.closest('[data-rotate]');
+  const retire = event.target.closest('[data-retire]');
+  if (rotate) guard(() => rotateToken(rotate.dataset.rotate))();
+  if (retire) guard(() => retireAgent(retire.dataset.retire))();
+});
+$('dispatchTable').addEventListener('click', (event) => {
+  const mark = event.target.closest('[data-mark]');
+  const cancel = event.target.closest('[data-cancel]');
+  if (mark) guard(() => markDispatch(mark.dataset.id, mark.dataset.mark))();
+  if (cancel) guard(() => cancelDispatch(cancel.dataset.cancel))();
+});
 $('modalClose').addEventListener('click', closeSheet);
 $('overlay').addEventListener('click', (event) => { if (event.target === $('overlay')) closeSheet(); });
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSheet(); });

@@ -19,7 +19,7 @@ export type Identity = { role: 'owner' | 'agent'; id: string };
  * 这里不做角色区分——限制只存在于“谁拿到令牌”，不在接口层。
  */
 export async function identify(req: VercelRequest): Promise<Identity | null> {
-  const agent = wbAgent(req);
+  const agent = await wbAgent(req);
   if (agent) return { role: 'agent', id: agent };
   try {
     const owner = await getOwner(req);

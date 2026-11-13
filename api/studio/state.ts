@@ -15,6 +15,15 @@ async function rows(path: string): Promise<Row[]> {
   return data;
 }
 
+/** 值班室是新加的：视图/表还没迁移时，别的层照常显示。 */
+async function safeRows(path: string): Promise<Row[]> {
+  try {
+    return await rows(path);
+  } catch {
+    return [];
+  }
+}
+
 function localDay(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -37,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const scheduleFrom = dayStartIso(addDays(day, -31));
     const scheduleTo = dayStartIso(addDays(day, 61));
 
-    const [agents, products, projects, tasks, milestones, docs, schedule, reports, tokens, logs, medians, taskEvents] = await Promise.all([
+    const [agents, products, projects, tasks, milestones, docs, schedule, reports, tokens, logs, medians, taskEvents, desk, dispatches] = await Promise.all([
       rows('wb_agents?select=*&order=id'),
       rows('wb_products?select=*&order=created_at.asc'),
       rows('wb_studio_projects?select=*&limit=400'),
@@ -50,6 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rows(`wb_agent_logs?select=*&day=gte.${addDays(day, -13)}&order=day.desc&limit=200`),
       rows('wb_stage_median?select=*'),
       rows(`wb_task_events?select=*&created_at=gte.${encodeURIComponent(dayStartIso(tokenFrom))}&order=created_at.desc&limit=1000`),
+      safeRows('wb_relay_desk?select=*&order=kind.asc,id.asc&limit=300'),
+      safeRows('wb_dispatches?select=*&status=in.(pending,claimed,delivered)&order=created_at.desc&limit=300'),
     ]);
 
     const agentName = new Map(agents.map((a) => [a.id, a.display_name]));
@@ -370,6 +381,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       history,
       medians: medians.map((m) => ({ stage: m.stage, medianDays: m.median_days, samples: m.samples })),
       taskEvents,
+      relay: {
+        agents: desk,
+        counts: {
+          online: desk.filter((a) => a.online).length,
+          bots: desk.filter((a) => a.kind === 'bot').length,
+          relays: desk.filter((a) => a.kind === 'relay').length,
+          humans: desk.filter((a) => a.kind === 'human').length,
+          pending: dispatches.filter((d) => d.status === 'pending').length,
+          claimed: dispatches.filter((d) => d.status === 'claimed').length,
+          delivered: dispatches.filter((d) => d.status === 'delivered').length,
+        },
+        dispatches: dispatches.map((d) => ({
+          ...d,
+          targetName: agentName.get(d.target_agent) ?? d.target_agent,
+          relayName: d.relay_agent ? agentName.get(d.relay_agent) ?? d.relay_agent : null,
+          taskTitle: d.task_id ? tasks.find((t) => t.id === d.task_id)?.title ?? null : null,
+          projectName: d.project_id ? projectName.get(d.project_id) ?? null : null,
+        })),
+      },
       range: { from, to },
     });
   } catch (error) {

@@ -18,9 +18,10 @@ Content-Type: application/json
 | 身份 | 令牌来源 | 能做什么 |
 |---|---|---|
 | owner | Supabase 登录后的 JWT | 全部（含页面） |
-| bot | `GROKBOT_BRIDGE_TOKEN` / `CODEX_BRIDGE_TOKEN` / `DEV2_BRIDGE_TOKEN` / `HERMES_BRIDGE_TOKEN` / `OPENBOT_BRIDGE_TOKEN` | 全部 Studio 接口 |
+| bot（环境变量） | `GROKBOT_BRIDGE_TOKEN` / `CODEX_BRIDGE_TOKEN` / `DEV2_BRIDGE_TOKEN` / `HERMES_BRIDGE_TOKEN` / `OPENBOT_BRIDGE_TOKEN` | 全部 Studio 接口 |
+| bot（自助登记） | `POST /api/studio/agents` 返回的 `wbt_<id>_…` 令牌，库里只存哈希 | 全部 Studio 接口（权限相同） |
 
-例外：旧的 `/api/workbench/report|tokens|logs` 是 **POST 只认 bot 令牌**、GET 只认 owner JWT；bot 上报用 bot 令牌就对了。
+例外：旧的 `/api/workbench/report|tokens|logs` 是 **POST 只认 bot 身份**（bridge 令牌或自助登记令牌，owner JWT 不行）、GET 只认 owner JWT；bot 上报用 bot 令牌就对了。
 
 接口不按“制定层 / 执行层”分权限：bot 一样可以建产品、改项目阶段。分组只表示用途。
 
@@ -49,6 +50,9 @@ Content-Type: application/json
 | 汇报进度 | `POST /api/workbench/report` | 执行 |
 | 记 token | `POST /api/workbench/tokens` | 账单 |
 | 交每日 Agent log | `POST /api/workbench/logs` | 账单 |
+| 登记 bot / 心跳 / 换令牌 / 下线 | `GET/POST/PATCH/DELETE /api/studio/agents` | 值班 |
+| 派单入队（一行「有任务」） | `POST /api/studio/dispatch` | 值班 |
+| 传信员待命（长轮询取单） | `GET /api/studio/inbox` | 值班 |
 
 ## 2. 全站数据 `GET /api/studio/state`
 
@@ -246,7 +250,99 @@ curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "Authorization: Bearer $TOKEN"
 - `waste_tokens` 必须 ≤ `tokens_in + tokens_out`，否则 `400`。
 - 汇报 `outcome=advanced` 会刷新项目“最后推进时间”；`blocked=true` 会把项目置为 `blocked`。
 
-## 12. 一个 bot 的标准循环
+## 12. 值班室：bot 登记与传信员待命
+
+为什么有这层：bot 不该自己一轮轮问「我有活吗」，也不该让每个 bot 花 token 去探。**传信员（relay）** 挂一条长轮询待着，有任务就收到一行「有任务」，转给自己平台上的那个 bot；正文由 bot 自己去取。队列里不装正文，就是为了不让传信员把 token 花在搬运内容上。
+
+### 12.1 登记 bot（自助，登记即发令牌）
+
+`POST /api/studio/agents`
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `id` | 是 | 小写字母/数字/`_`/`-`，2–32 位，全站唯一 |
+| `display_name` | | ≤80，页面上显示 |
+| `kind` | | `bot`（默认）/ `relay`（传信员）/ `human` |
+| `platform` | | ≤40：`OpenBot` / `Hermes` / `Codex CLI` … |
+| `role` | | ≤80，自由文本 |
+| `capabilities` | | 最多 12 个短标签：`["code","crawl"]` 或 `"code, crawl"` |
+| `contact` | | ≤200，平台上怎么找到它（@handle / 群名 / URL） |
+| `relay_agent` | | 由哪个传信员代它待命；留空 = 平台直连 |
+| `heartbeat_s` | | 15–3600，默认 60；在线 = 3 个心跳周期内报到过 |
+| `issue_token` | | 默认 `true`；第一次登记时返回令牌 |
+
+返回里带 `token`（`wbt_<id>_…`），**只显示这一次**，库里只存 sha256。丢了只能换新的。
+
+```bash
+curl -s -X POST "$BASE/api/studio/agents" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{
+    "id": "prasad-crawler",
+    "display_name": "拼多多扒手",
+    "platform": "OpenBot",
+    "capabilities": "crawl, pdd",
+    "relay_agent": "relay-openbot"
+  }'
+```
+
+| 动作 | 调用 |
+|---|---|
+| 列表：在线状态、未完成单数、有没有令牌 | `GET /api/studio/agents`（`?kind=relay`、`?capability=code`、`?all=1` 含已下线） |
+| 心跳（在线状态来源） | `PATCH /api/studio/agents?id=<id>` `{"heartbeat":true}` |
+| 改资料 | 同上，只传要改的字段 |
+| 换令牌（旧令牌立刻失效） | 同上 `{"rotate_token":true}` |
+| 下线（软删，历史保留） | `DELETE /api/studio/agents?id=<id>` |
+
+### 12.2 派单：队列里只放一行「有任务」
+
+`POST /api/studio/dispatch`
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `task_id` | 二选一 | 派哪个任务；`project_id` 自动带出 |
+| `target_agent` | 是* | 交给哪个 bot；带了 `task_id` 且任务有负责人时可省 |
+| `relay_agent` | | 不传就用目标 bot 登记的 `relay_agent` |
+| `headline` | | 不传自动生成 `【项目名】任务标题`（≤300）——传信员唯一要读的文字 |
+| `hint` | | ≤500，例如「先看 README 再动手」 |
+| `priority` | | `high` / `medium` / `low`（默认 `medium`），队列按它排序 |
+| `expires_in_s` | | 默认 172800（2 天），范围 300–2592000 |
+
+同一任务同一目标**只有一条**未走完的派单；重复派是更新那一条，不会刷屏。
+
+任务接口会自动派单：`POST /api/studio/tasks` 带 `assignee_agent` 时默认入队（`{"dispatch": false}` 可关）；`PATCH` 换负责人会重新派；任务 `completed` 会自动把它名下未完成的派单标 `acked`。
+
+查队列：`GET /api/studio/dispatch?status=open&target=&relay=`，返回 `dispatches` 与 `counts`。
+
+### 12.3 传信员待命（长轮询）
+
+`GET /api/studio/inbox?relay=<传信员 id>&wait=25&take=1`
+
+- 没单就**挂着**，最多 `wait` 秒（默认 20，上限 45）；一有单立刻返回，并把这一单原子地标成 `claimed`——两个传信员同时挂着，也只有一个能拿到。
+- `wait=0` 立即返回：短轮询或调试用。
+- `cover=1`：除自己名下的单，也代领「还没指定传信员」的单（领取时自动记到自己头上）。不传就只拿明确分给自己的。
+- 超时返回 `200` + `timeout: true`，不是错误；按 `nextPollMs` 接着待命。
+
+每单只有：`id`、`headline`、`hint`、`priority`、`target_agent`、`task_id`、`prompt_url`、`expires_at`、`status`、`claimed_at`。**没有任务正文**。
+
+```bash
+curl -s "$BASE/api/studio/inbox?relay=relay-openbot&wait=25" \
+  -H "Authorization: Bearer $RELAY_TOKEN"
+```
+
+叫醒 bot 之后回执（传信员的工作到此为止）：
+
+```bash
+curl -s -X PATCH "$BASE/api/studio/dispatch?id=<单 id>" \
+  -H "Authorization: Bearer $RELAY_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"status":"delivered"}'
+```
+
+### 12.4 状态机
+
+`pending` 待领取 → `claimed` 传信员已领 → `delivered` 已叫醒 bot → `acked` 已收尾；另有 `expired`（过有效期没人取，待命接口会顺手清扫）和 `cancelled`。
+
+`PATCH /api/studio/dispatch?id=<id>` 改状态；`PATCH ...?task_id=<id>` 把某任务未完成的派单一次收尾（`acked` / `cancelled`）；`DELETE ?id=` = 取消。
+
+## 13. 一个 bot 的标准循环
 
 ```text
 1. GET  /api/studio/prompt?project=<id>     # 领活，拿 prompt
@@ -258,14 +354,22 @@ curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "Authorization: Bearer $TOKEN"
 卡住：POST /api/studio/check {task_id, reason}
 ```
 
-## 13. 别做这些
+被传信员叫醒的 bot（不自己轮询）：
+
+```text
+0. PATCH /api/studio/agents?id=<自己> {"heartbeat":true}   # 报到，页面才算它在线
+1. GET  /api/studio/prompt?task=<task_id>                  # 用传信员给的任务 id 取正文
+2. （干活）…… 3-6 同上
+```
+
+## 14. 别做这些
 
 - 别直接写 `wb_*` 表（没有公开的 PostgREST 权限，写了也会被拒）；一律走接口。
 - 别改 `public.tasks` / `public.messages`——那是线上任务桥的。
 - 别把 token、密码、Cookie 塞进 `body` / `plan` / `detail` 这类文本字段。
 - 没有 `>=2` 次阶段样本时不要自己编 ETA；接口返回 `null` 就是样本不足。
 
-## 14. 数据与口径速查
+## 15. 数据与口径速查
 
 - 阶段顺序：`idea → proposal → validated → build → testing → launch → revenue`（7 段）。
 - 任务状态：`on_track` 正常 / `at_risk` 有风险 / `blocked` 受阻 / `completed` 完成 / `on_hold` 暂停。

@@ -335,3 +335,19 @@ form.stack .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   .ptile:hover{width:186px}
   .ptile:hover .ptile-extra{max-height:0;opacity:0}
 }
+
+/* ── 值班室 ───────────────────────────────────────────────── */
+.tag.good{background:#e4f6eb;color:var(--green)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;letter-spacing:-.01em}
+.row-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row-btns{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
+.row-btns .ghost.small{padding:4px 8px}
+pre.snippet{
+  margin:0;background:var(--light-3);border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px;font-size:11px;line-height:1.75;color:var(--navy-2);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+  white-space:pre-wrap;overflow-x:auto;
+}
+#layer-relay .card{margin-bottom:14px}
+#layer-relay .card .sub{margin:-6px 0 10px}
+#layer-relay textarea.mono{background:var(--light-3);border:1px solid var(--line);border-radius:9px;padding:10px;font-size:11px;width:100%}

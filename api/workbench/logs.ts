@@ -5,7 +5,7 @@ import { intIn, optionalText, parseDay, today, wbAgent } from './_shared';
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === 'POST') {
-      const agent = wbAgent(req);
+      const agent = await wbAgent(req);
       if (!agent) return json(res, 401, { error: 'Invalid agent token.' });
 
       const body = (req.body ?? {}) as Record<string, unknown>;

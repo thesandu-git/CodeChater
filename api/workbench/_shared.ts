@@ -1,5 +1,6 @@
 import type { VercelRequest } from '@vercel/node';
-import { db, env } from '../_lib';
+import { createHash } from 'node:crypto';
+import { db, env, readJson } from '../_lib';
 
 export const STAGES = ['idea', 'proposal', 'validated', 'build', 'testing', 'launch', 'revenue'] as const;
 export type Stage = (typeof STAGES)[number];
@@ -70,8 +71,44 @@ export function uuidOrNull(value: unknown): string | null | undefined {
   return typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value) ? value : undefined;
 }
 
-/** Agent identity from a bearer token. A missing env var never matches. */
-export function wbAgent(req: VercelRequest): string | null {
+/** 令牌只存哈希：登记时返回明文一次，之后不可取回。 */
+export function hashToken(token: string): string {
+  return createHash('sha256').update(token.trim()).digest('hex');
+}
+
+/**
+ * 自助登记的 bot 拿到自己的令牌（见 /api/studio/agents）。
+ * 只存 sha256；这里查一次、缓存 60 秒，避免每个请求都打库。
+ * 查不到就当作匿名——令牌表不存在时也不会让请求 500。
+ */
+const TOKEN_CACHE = new Map<string, { agent: string | null; at: number }>();
+const TOKEN_TTL_MS = 60_000;
+
+async function agentForDbToken(token: string): Promise<string | null> {
+  const hash = hashToken(token);
+  const cached = TOKEN_CACHE.get(hash);
+  if (cached && Date.now() - cached.at < TOKEN_TTL_MS) return cached.agent;
+
+  let agent: string | null = null;
+  try {
+    const response = await db(`wb_agent_tokens?token_sha256=eq.${hash}&revoked=eq.false&select=agent_id&limit=1`);
+    const rows = await readJson<Array<{ agent_id?: string }>>(response);
+    agent = Array.isArray(rows) && rows[0]?.agent_id ? rows[0].agent_id : null;
+    if (agent) {
+      // last_used_at 只是观测信息，写失败不影响鉴权
+      void db(`wb_agent_tokens?agent_id=eq.${encodeURIComponent(agent)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ last_used_at: new Date().toISOString() }),
+      }).catch(() => undefined);
+    }
+  } catch {
+    agent = null;
+  }
+  TOKEN_CACHE.set(hash, { agent, at: Date.now() });
+  return agent;
+}
+
+export async function wbAgent(req: VercelRequest): Promise<string | null> {
   const header = req.headers.authorization;
   const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (!token) return null;
@@ -84,7 +121,9 @@ export function wbAgent(req: VercelRequest): string | null {
     }
     if (secret && token === secret) return agent;
   }
-  return null;
+  // owner 的 Supabase JWT 不会在令牌表里，省一次查库
+  if (token.split('.').length === 3) return null;
+  return agentForDbToken(token);
 }
 
 export function rpc(name: string, body: Record<string, unknown>) {

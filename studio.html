@@ -24,6 +24,9 @@
         <button class="rail-btn" data-tab="log" title="Agent Log">
           <span class="glyph">◫</span><span>Log</span>
         </button>
+        <button class="rail-btn" data-tab="relay" title="值班室：bot 登记与传信员待命">
+          <span class="glyph">◈</span><span>值班</span>
+        </button>
       </nav>
       <div class="rail-foot">
         <button id="signOut" class="rail-btn hidden" title="退出">
@@ -106,6 +109,26 @@
           <div id="timelineCanvas" class="timeline-canvas"></div>
           <div id="timelineLegend" class="legend"></div>
         </div>
+      </section>
+
+      <section id="layer-relay" class="layer hidden">
+        <div class="section-head">
+          <div>
+            <h2>值班室</h2>
+            <p class="sub">bot 登记 · 传信员待命 · 派单队列。队列里只放一行「有任务」，正文由 bot 自己去 <code>/api/studio/prompt</code> 取</p>
+          </div>
+          <div class="row-actions">
+            <button id="registerRelay" class="ghost small">+ 传信员</button>
+            <button id="registerBot" class="ghost small">+ bot</button>
+            <button id="manualDispatch" class="ghost small">手动派单</button>
+          </div>
+        </div>
+
+        <div id="relayKpis" class="kpi-row"></div>
+
+        <div class="card"><h3>已登记</h3><p class="sub">在线 = 最近 3 个心跳周期内报到过</p><div id="agentTable"></div></div>
+        <div class="card"><h3>派单队列</h3><div id="dispatchTable"></div></div>
+        <div class="card"><h3>传信员怎么待命</h3><div id="relaySnippet"></div></div>
       </section>
 
       <section id="layer-log" class="layer hidden">
