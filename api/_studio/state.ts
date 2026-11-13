@@ -55,8 +55,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rows('wb_docs?select=*&order=created_at.desc&limit=500'),
       rows(`wb_schedule?select=*&start_at=gte.${encodeURIComponent(scheduleFrom)}&start_at=lt.${encodeURIComponent(scheduleTo)}&order=start_at.asc&limit=2000`),
       rows(`wb_reports?select=*&created_at=gte.${encodeURIComponent(dayStartIso(tokenFrom))}&order=created_at.desc&limit=1000`),
-      rows(`wb_token_usage?select=*&day=gte.${tokenFrom}&order=day.asc&limit=5000`),
-      rows(`wb_agent_logs?select=*&day=gte.${addDays(day, -13)}&order=day.desc&limit=200`),
+      // 窗口按 ?day 收口：[day-29, day]。只给下界时 day 只挪起点，不同 day 读到同一批行，
+      // byAgent/byProject/byModel 看起来“换了 day 不变”。
+      rows(`wb_token_usage?select=*&day=gte.${tokenFrom}&day=lte.${day}&order=day.asc&limit=5000`),
+      rows(`wb_agent_logs?select=*&day=gte.${addDays(day, -13)}&day=lte.${day}&order=day.desc&limit=200`),
       rows('wb_stage_median?select=*'),
       rows(`wb_task_events?select=*&created_at=gte.${encodeURIComponent(dayStartIso(tokenFrom))}&order=created_at.desc&limit=1000`),
       safeRows('wb_relay_desk?select=*&order=kind.asc,id.asc&limit=300'),
