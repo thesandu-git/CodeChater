@@ -4,5 +4,14 @@
     "api/**/*.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/api-docs", "destination": "/docs/API.md" }
+  ],
+  "headers": [
+    {
+      "source": "/docs/API.md",
+      "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
+    }
+  ]
 }
