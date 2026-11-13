@@ -11,7 +11,8 @@ import { bearerToken, identify, json, num, oneOf, registryToken, text } from './
  *   1) 已有的任一有效令牌（owner 的 Supabase JWT，或任一已登记 bot 的令牌），权限与其余接口相同；
  *   2) REGISTRY_TOKEN：只用于第一次登记，只能 POST 建新 bot，不能读、不能改、不能换别人的令牌。
  * 第二扇门解决“新 bot 没有令牌 → 不能登记 → 永远没有令牌”的死循环，且不引入任何岗位权限。
- * 登记时返回一次明文令牌，库里只存 sha256；轮换用 PATCH {rotate_token:true}。
+ * 登记时返回一次明文令牌，库里只存 sha256；轮换用 POST {id, rotate_token:true}
+ * （PATCH ?id= 也支持 rotate_token，两条路都会把新令牌放在响应的 token 字段里）。
  */
 
 const KINDS = ['bot', 'human', 'relay'] as const;
@@ -139,7 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           relays: withTokens.filter((a) => a.kind === 'relay').length,
           humans: withTokens.filter((a) => a.kind === 'human').length,
         },
-        hint: '登记新 bot：POST /api/studio/agents；心跳：PATCH /api/studio/agents?id=<id> {heartbeat:true}；待命取单：GET /api/studio/inbox?relay=<id>',
+        hint: '登记新 bot / 换令牌：POST /api/studio/agents {id, rotate_token:true}；心跳：PATCH /api/studio/agents?id=<id> {heartbeat:true}；待命取单：GET /api/studio/inbox?relay=<id>',
       });
     }
 
@@ -181,7 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (registry && before) {
         return json(res, 409, {
           error: '这个 id 已经登记过。',
-          hint: '换令牌要用它自己的令牌 PATCH /api/studio/agents?id=<id> {rotate_token:true}。',
+          hint: '换令牌要用它自己的令牌 POST /api/studio/agents {id, rotate_token:true}。',
         });
       }
       const created = await db('wb_agents?on_conflict=id&select=*', {
@@ -203,10 +204,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         created: isNew,
         token,
         tokenNote: token
-          ? '这串令牌只显示这一次，库里只存哈希。丢了用 PATCH {rotate_token:true} 换新的。'
+          ? '这串令牌只显示这一次，库里只存哈希。丢了再用 POST /api/studio/agents {id, rotate_token:true} 换新的。'
           : isNew
             ? '未发令牌（issue_token=false）。'
-            : '已存在，未动令牌；要换用 PATCH /api/studio/agents?id=' + id + ' {rotate_token:true}。',
+            : '已存在，未动令牌；要换用 POST /api/studio/agents {id, rotate_token:true}。',
       });
     }
 
@@ -253,9 +254,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return json(res, 400, { error: '无法更新登记。', detail: rows });
       }
 
+      // 轮换只走一条路：拿不到新令牌就报错，绝不 200 + token:null 地静默过去。
       let token: string | null = null;
-      if (body.rotate_token === true) token = await issueToken(id, 'rotated');
-      if (body.active === false) await revokeToken(id);
+      if (body.active === false) {
+        await revokeToken(id);
+      } else if (body.rotate_token === true) {
+        token = await issueToken(id, 'rotated');
+        if (!token) {
+          return json(res, 503, {
+            error: '换令牌失败：新令牌没写进库，旧令牌仍然有效。',
+            hint: '重试一次；或改用 POST /api/studio/agents {id, rotate_token:true}（同一条路）。',
+          });
+        }
+      }
 
       return json(res, 200, {
         agent: rows[0],
