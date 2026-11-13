@@ -90,12 +90,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         patch.done = Boolean(body.done);
         patch.done_at = body.done ? new Date().toISOString() : null;
       }
-      const start = body.start_at === undefined ? undefined : toIso(body.start_at);
-      if (start === undefined) return json(res, 400, { error: '开始时间无效。' });
-      if (start) patch.start_at = start;
-      const end = body.end_at === undefined ? undefined : toIso(body.end_at);
-      if (end === undefined) return json(res, 400, { error: '结束时间无效。' });
-      if (end !== undefined) patch.end_at = end;
+      // 只有请求里真的带了才校验：PATCH {"done":true} 不该被一个没传的 start_at 拦住。
+      if (body.start_at !== undefined) {
+        const start = toIso(body.start_at);
+        if (!start) {
+          return json(res, 400, { error: '开始时间无效。', hint: 'start_at 是必填列，只能写 ISO 时间或 YYYY-MM-DD，不能清空。' });
+        }
+        patch.start_at = start;
+      }
+      if (body.end_at !== undefined) {
+        const end = toIso(body.end_at);
+        if (end === undefined) return json(res, 400, { error: '结束时间无效。' });
+        patch.end_at = end; // 传空串 = 清掉结束时间
+      }
       if (body.project_id !== undefined) {
         const projectId = uuid(body.project_id);
         if (projectId === undefined) return json(res, 400, { error: '项目 id 无效。' });

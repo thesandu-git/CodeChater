@@ -24,30 +24,38 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token.trim()).digest('hex');
 }
 
-const TOKEN_CACHE = new Map<string, { agent: string | null; at: number }>();
-const TOKEN_TTL_MS = 60_000;
+/**
+ * 令牌 → bot 的查库结果**不缓存**：换令牌、下线必须“立刻”生效。
+ * 之前缓存 60 秒，结果是换发令牌后旧令牌还能再用一分钟——线上就是这么复现的。
+ * 多实例部署下进程内缓存也不可能被别的实例清掉，所以干脆不缓存；
+ * 按 token_sha256 的索引查询很便宜，正确性优先。
+ */
+const LAST_SEEN_WRITE = new Map<string, number>();
+const LAST_SEEN_WRITE_MS = 60_000;
+
+/** last_used_at 只是观测信息：同一 bot 每分钟最多写一次，别让每次读都带一次写。 */
+function touchLastUsed(agent: string): void {
+  const now = Date.now();
+  const last = LAST_SEEN_WRITE.get(agent);
+  if (last && now - last < LAST_SEEN_WRITE_MS) return;
+  LAST_SEEN_WRITE.set(agent, now);
+  void db(`wb_agent_tokens?agent_id=eq.${encodeURIComponent(agent)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ last_used_at: new Date().toISOString() }),
+  }).catch(() => undefined);
+}
 
 async function agentForDbToken(token: string): Promise<string | null> {
   const hash = hashToken(token);
-  const cached = TOKEN_CACHE.get(hash);
-  if (cached && Date.now() - cached.at < TOKEN_TTL_MS) return cached.agent;
-
   let agent: string | null = null;
   try {
     const response = await db(`wb_agent_tokens?token_sha256=eq.${hash}&revoked=eq.false&select=agent_id&limit=1`);
     const rows = await readJson<Array<{ agent_id?: string }>>(response);
     agent = Array.isArray(rows) && rows[0]?.agent_id ? rows[0].agent_id : null;
-    if (agent) {
-      // last_used_at 只是观测信息，写失败不影响鉴权
-      void db(`wb_agent_tokens?agent_id=eq.${encodeURIComponent(agent)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ last_used_at: new Date().toISOString() }),
-      }).catch(() => undefined);
-    }
+    if (agent) touchLastUsed(agent);
   } catch {
     agent = null;
   }
-  TOKEN_CACHE.set(hash, { agent, at: Date.now() });
   return agent;
 }
 
