@@ -5,11 +5,61 @@ import {
   PRIORITIES, TASK_STATUSES, json, num, oneOf, requireIdentity, text, uuid,
 } from './_shared';
 
+type Row = Record<string, any>;
+
+/**
+ * assignee_agent / requester_agent 都外键指向 wb_agents(id)。
+ * 没登记的 id 会被 Postgres 用 23503 顶回来，长得像事故；这里提前换成人话。
+ * 查不动（网络/后端故障）返回 false，让写入照常尝试，由下面的外键兜底。
+ */
+async function unregistered(agentId: string): Promise<boolean> {
+  try {
+    const response = await db(`wb_agents?id=eq.${encodeURIComponent(agentId)}&select=id&limit=1`);
+    const rows = await readJson<Row[]>(response);
+    if (!response.ok || !Array.isArray(rows)) return false;
+    return rows.length === 0;
+  } catch {
+    return false;
+  }
+}
+
+function notRegistered(agentId: string, role: string) {
+  return {
+    error: `${role} ${agentId} 还没登记：先 POST /api/studio/agents 登记它，或换成已登记的 id。`,
+    hint: '已登记的 id 见 GET /api/studio/agents。',
+  };
+}
+
+/** 兜底：写入已经撞了外键时，把 23503 翻译成同一句中文。 */
+function foreignKeyColumn(payload: unknown): string | null {
+  const body = (Array.isArray(payload) ? payload[0] : payload) as Row | null;
+  const message = String(body?.details ?? body?.detail ?? body?.message ?? '');
+  if (body?.code !== '23503' && !/is not present in table/i.test(message)) return null;
+  const match = /key \((.+?)\)=/i.exec(message) ?? /Key \((.+?)\)/i.exec(message);
+  return match ? match[1] : 'agent';
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const who = await requireIdentity(req, res);
   if (!who) return;
   try {
     if (req.method === 'GET') {
+      // 单条：?task=<id>（prompt 的手感），?id= 也认
+      const single = uuid(req.query.task ?? req.query.id);
+      if (single === undefined) return json(res, 400, { error: '任务 id 无效。' });
+      if (single) {
+        const response = await db(`wb_tasks?id=eq.${single}&select=*&limit=1`);
+        const data = await readJson<Row[]>(response);
+        if (!response.ok) return json(res, response.status, data);
+        const task = Array.isArray(data) ? data[0] : null;
+        if (!task) {
+          return json(res, 404, {
+            error: '没有这个任务。',
+            hint: '列表用 GET /api/studio/tasks?project=<项目 id>，别用 ?task= 查不存在的 id。',
+          });
+        }
+        return json(res, 200, task);
+      }
       const project = uuid(req.query.project);
       const status = oneOf(req.query.status, TASK_STATUSES);
       if (project === undefined) return json(res, 400, { error: '项目 id 无效。' });
@@ -31,6 +81,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (parentId === undefined) return json(res, 400, { error: '父任务 id 无效。' });
       const status = oneOf(body.status, TASK_STATUSES) ?? 'on_track';
 
+      const assignee = text(body.assignee_agent, 32) ?? null;
+      if (assignee && await unregistered(assignee)) return json(res, 400, notRegistered(assignee, '执行方'));
+      const requester = text(body.requester_agent, 32) ?? (who.role === 'agent' ? who.id : null);
+      if (requester && requester !== assignee && await unregistered(requester)) {
+        return json(res, 400, notRegistered(requester, '派任务的人'));
+      }
+
       const row: Record<string, unknown> = {
         project_id: projectId,
         parent_id: parentId,
@@ -38,8 +95,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         plan: text(body.plan, 8000) ?? '',
         status,
         priority: oneOf(body.priority, PRIORITIES) ?? 'medium',
-        assignee_agent: text(body.assignee_agent, 32) ?? null,
-        requester_agent: text(body.requester_agent, 32) ?? (who.role === 'agent' ? who.id : null),
+        assignee_agent: assignee,
+        requester_agent: requester,
         owner_required: Boolean(body.owner_required),
         progress: status === 'completed' ? 100 : num(body.progress, 0, 100) ?? 0,
         start_at: text(body.start_at, 10) ?? null,
@@ -55,7 +112,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify(row),
       });
       const rows = await readJson<Record<string, any>[]>(created);
-      if (!created.ok) return json(res, 400, { error: '无法创建任务。', detail: rows });
+      if (!created.ok) {
+        const column = foreignKeyColumn(rows);
+        if (column === 'assignee_agent') return json(res, 400, notRegistered(String(row.assignee_agent), '执行方'));
+        if (column === 'requester_agent') return json(res, 400, notRegistered(String(row.requester_agent), '派任务的人'));
+        return json(res, 400, { error: '无法创建任务。', detail: rows });
+      }
       await db('wb_task_events', {
         method: 'POST',
         body: JSON.stringify({
@@ -124,7 +186,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!priority) return json(res, 400, { error: '未知优先级。' });
         patch.priority = priority;
       }
-      if (body.assignee_agent !== undefined) patch.assignee_agent = text(body.assignee_agent, 32);
+      if (body.assignee_agent !== undefined) {
+        const assignee = text(body.assignee_agent, 32);
+        if (assignee === undefined) return json(res, 400, { error: '执行方 id 太长（≤32 位）。' });
+        if (assignee && await unregistered(assignee)) return json(res, 400, notRegistered(assignee, '执行方'));
+        patch.assignee_agent = assignee;
+      }
       if (body.owner_required !== undefined) patch.owner_required = Boolean(body.owner_required);
       if (body.progress !== undefined) {
         const progress = num(body.progress, 0, 100);
@@ -149,7 +216,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify(patch),
       });
       const rows = await readJson<Record<string, any>[]>(updated);
-      if (!updated.ok) return json(res, 400, { error: '无法更新任务。', detail: rows });
+      if (!updated.ok) {
+        const column = foreignKeyColumn(rows);
+        if (column === 'assignee_agent') return json(res, 400, notRegistered(String(patch.assignee_agent), '执行方'));
+        if (column === 'requester_agent') return json(res, 400, notRegistered(String(patch.requester_agent), '派任务的人'));
+        return json(res, 400, { error: '无法更新任务。', detail: rows });
+      }
       if (statusChanged) {
         await db('wb_task_events', {
           method: 'POST',
