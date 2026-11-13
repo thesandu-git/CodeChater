@@ -1,4 +1,4 @@
-import { db, readJson } from '../_lib';
+import { db, readJson } from '../lib';
 
 /**
  * 派单队列：把「有任务」这件事放进队列，由传信员（relay）待命取走，

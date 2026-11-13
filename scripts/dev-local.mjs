@@ -7,6 +7,7 @@
 // 这个脚本只做两件事：读静态文件、动态 import handlers，够本地验证用。
 
 import http from 'node:http';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -35,10 +36,19 @@ const TYPES = {
   '.md': 'text/markdown; charset=utf-8',
 };
 
+// 两级路由：先是同名文件，其次是 api/<group>/[...path].ts 这类 catch-all
+// （线上为了 12 个函数的 Hobby 上限，studio / workbench / agent 都是 catch-all）。
 function handlerFile(pathname) {
   const rel = pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
-  if (!rel || rel.includes('..') || !/^[a-z0-9_/-]+$/i.test(rel)) return null;
-  return path.join(ROOT, 'api', `${rel}.ts`);
+  if (!rel || rel.includes('..') || !/^[a-z0-9_/[\]-]+$/i.test(rel)) return null;
+  const parts = rel.split('/');
+  const direct = path.join(ROOT, 'api', `${rel}.ts`);
+  if (existsSync(direct)) return { file: direct, segments: [] };
+  if (parts.length >= 2) {
+    const catchAll = path.join(ROOT, 'api', parts[0], '[...path].ts');
+    if (existsSync(catchAll)) return { file: catchAll, segments: parts.slice(1) };
+  }
+  return null;
 }
 
 async function readBody(req) {
@@ -100,10 +110,10 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const file = handlerFile(pathname);
-  if (file) {
+  const route = handlerFile(pathname);
+  if (route) {
     try {
-      const handler = (await import(pathToFileURL(file).href)).default;
+      const handler = (await import(pathToFileURL(route.file).href)).default;
       if (typeof handler !== 'function') {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'No default handler export.' }));
@@ -113,7 +123,10 @@ const server = http.createServer(async (req, res) => {
         method: req.method,
         url: req.url,
         headers: req.headers,
-        query: Object.fromEntries(url.searchParams.entries()),
+        query: {
+          ...Object.fromEntries(url.searchParams.entries()),
+          ...(route.segments.length ? { path: route.segments } : {}),
+        },
         body: req.method === 'POST' || req.method === 'PATCH' ? await readBody(req) : undefined,
       };
       await handler(request, makeRes(res));

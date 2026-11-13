@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { agentForToken, db, json, readJson, type TaskStatus, validText } from '../_lib';
+import { agentForToken, db, json, readJson, type TaskStatus, validText } from '../lib';
 
 const statuses: TaskStatus[] = ['working', 'needs_input', 'done', 'failed'];
 

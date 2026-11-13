@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getOwner, json, readJson } from '../_lib';
+import { getOwner, json, readJson } from '../lib';
 import { parseDay, rpc, today } from './_shared';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

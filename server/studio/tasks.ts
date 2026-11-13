@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, readJson } from '../_lib';
+import { db, readJson } from '../lib';
 import { closeDispatches, queueDispatch } from './_dispatch';
 import {
   PRIORITIES, TASK_STATUSES, json, num, oneOf, requireIdentity, text, uuid,

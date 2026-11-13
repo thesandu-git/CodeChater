@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, getOwner, json, readJson, validText } from '../_lib';
+import { db, getOwner, json, readJson, validText } from '../lib';
 import {
   OUTCOMES,
   REPORT_KINDS,

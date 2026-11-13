@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { env, json } from './_lib';
+import { env, json } from '../server/lib';
 
 export default function handler(_req: VercelRequest, res: VercelResponse) {
   try {

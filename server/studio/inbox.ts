@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, readJson } from '../_lib';
+import { db, readJson } from '../lib';
 import { touchAgent } from './_dispatch';
 import { json, num, requireIdentity, text } from './_shared';
 

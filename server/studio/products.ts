@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, readJson } from '../_lib';
+import { db, readJson } from '../lib';
 import { json, num, oneOf, requireIdentity, text, uuid } from './_shared';
 
 const STATUSES = ['active', 'paused', 'done', 'killed'] as const;
