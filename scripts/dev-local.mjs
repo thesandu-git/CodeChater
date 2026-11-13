@@ -15,19 +15,15 @@ import { pathToFileURL } from 'node:url';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const PORT = Number(process.env.PORT || 3120);
 const STATIC = new Map([
-  ['/', 'index.html'],
-  ['/index.html', 'index.html'],
-  ['/workbench', 'workbench.html'],
-  ['/workbench.html', 'workbench.html'],
+  ['/', 'studio.html'],
+  ['/index.html', 'studio.html'],
+  ['/workbench', 'studio.html'],
+  ['/workbench.html', 'studio.html'],
   ['/studio', 'studio.html'],
   ['/studio.html', 'studio.html'],
   ['/studio.js', 'studio.js'],
   ['/studio.css', 'studio.css'],
   ['/api-docs', 'docs/API.md'],
-  ['/app.js', 'app.js'],
-  ['/workbench.js', 'workbench.js'],
-  ['/style.css', 'style.css'],
-  ['/workbench.css', 'workbench.css'],
 ]);
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -37,7 +33,7 @@ const TYPES = {
 };
 
 // 两级路由：先是同名文件，其次是 api/<group>/[...path].ts 这类 catch-all
-// （线上为了 12 个函数的 Hobby 上限，studio / workbench / agent 都是 catch-all）。
+// （线上为了 12 个函数的 Hobby 上限，/api/studio/* 是一个 catch-all）。
 function handlerFile(pathname) {
   const rel = pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
   if (!rel || rel.includes('..') || !/^[a-z0-9_/[\]-]+$/i.test(rel)) return null;
@@ -102,6 +98,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 与线上一致：旧的 /workbench 永久跳到 /studio
+  if (pathname === '/workbench' || pathname === '/workbench.html') {
+    res.writeHead(301, { Location: '/studio' });
+    res.end();
+    return;
+  }
+
   if (STATIC.has(pathname)) {
     const file = path.join(ROOT, STATIC.get(pathname));
     const body = await readFile(file);
@@ -146,8 +149,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`本地控制台：http://localhost:${PORT}`);
-  console.log(`工作台：   http://localhost:${PORT}/workbench`);
-  console.log(`Studio：   http://localhost:${PORT}/studio`);
+  console.log(`Studio：  http://localhost:${PORT}/`);
+  console.log(`接口手册：http://localhost:${PORT}/api-docs`);
   console.log('用 Supabase Auth 的账户登录（与线上同一个账户）。Ctrl+C 退出。');
 });

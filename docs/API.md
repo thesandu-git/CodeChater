@@ -21,7 +21,7 @@ Content-Type: application/json
 | bot（环境变量） | `GROKBOT_BRIDGE_TOKEN` / `CODEX_BRIDGE_TOKEN` / `DEV2_BRIDGE_TOKEN` / `HERMES_BRIDGE_TOKEN` / `OPENBOT_BRIDGE_TOKEN` | 全部 Studio 接口 |
 | bot（自助登记） | `POST /api/studio/agents` 返回的 `wbt_<id>_…` 令牌，库里只存哈希 | 全部 Studio 接口（权限相同） |
 
-例外：旧的 `/api/workbench/report|tokens|logs` 是 **POST 只认 bot 身份**（bridge 令牌或自助登记令牌，owner JWT 不行）、GET 只认 owner JWT；bot 上报用 bot 令牌就对了。
+例外：`/api/studio/report|tokens|logs` 的 **POST 只认 bot 身份**（bridge 令牌或自助登记令牌，owner JWT 不行），因为账要记到某个 bot 名下；GET 只认 owner JWT。其余 `/api/studio/*` 两种身份等价。
 
 接口不按“制定层 / 执行层”分权限：bot 一样可以建产品、改项目阶段。分组只表示用途。
 
@@ -47,9 +47,9 @@ Content-Type: application/json
 | 写研究/规划文档 | `POST /api/studio/docs` | 制定 |
 | 领活：拿执行摘要 prompt | `GET /api/studio/prompt` | 执行 |
 | 卡住/要人看：申请检查 | `POST /api/studio/check` | 执行 |
-| 汇报进度 | `POST /api/workbench/report` | 执行 |
-| 记 token | `POST /api/workbench/tokens` | 账单 |
-| 交每日 Agent log | `POST /api/workbench/logs` | 账单 |
+| 汇报进度 | `POST /api/studio/report` | 执行 |
+| 记 token | `POST /api/studio/tokens` | 账单 |
+| 交每日 Agent log | `POST /api/studio/logs` | 账单 |
 | 登记 bot / 心跳 / 换令牌 / 下线 | `GET/POST/PATCH/DELETE /api/studio/agents` | 值班 |
 | 派单入队（一行「有任务」） | `POST /api/studio/dispatch` | 值班 |
 | 传信员待命（长轮询取单） | `GET /api/studio/inbox` | 值班 |
@@ -216,7 +216,7 @@ curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "Authorization: Bearer $TOKEN"
   "taskId": "...", "projectId": "...", "productId": "...",
   "task": { "...": "任务全字段" },
   "prompt": "# 任务执行摘要 · ...（可直接塞进上下文）",
-  "contract": { "report": ".../api/workbench/report", "tokens": "...", "complete": "...", "check": "..." }
+  "contract": { "report": ".../api/studio/report", "tokens": "...", "complete": "...", "check": "..." }
 }
 ```
 
@@ -240,9 +240,9 @@ curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "Authorization: Bearer $TOKEN"
 
 | 接口 | 用途 | 关键字段 |
 |---|---|---|
-| `POST /api/workbench/report` | 进度/阻塞汇报 | `project`（名字或 id）或 `project_id`、`kind`（progress/blocker/decision/milestone/note）、`summary` 1–500 必填、`detail` ≤8000、`outcome`（advanced/unchanged/failed，默认 advanced）、`percent` 0–100、`blocked`、`blocker_owner`、`tokens_total`、`task_id`、`day` |
-| `POST /api/workbench/tokens` | token 记账 | `project` 或 `project_id`、`tokens_in`、`tokens_out`、`waste_tokens`、`waste_reason`（waste>0 必填、≤240 字）、`model`、`sessions`、`day` |
-| `POST /api/workbench/logs` | 每日 Agent log | `log_markdown` 必填、`projects`、`tasks_done`、`tasks_failed`、`self_review`、`day` |
+| `POST /api/studio/report` | 进度/阻塞汇报 | `project`（名字或 id）或 `project_id`、`kind`（progress/blocker/decision/milestone/note）、`summary` 1–500 必填、`detail` ≤8000、`outcome`（advanced/unchanged/failed，默认 advanced）、`percent` 0–100、`blocked`、`blocker_owner`、`tokens_total`、`task_id`、`day` |
+| `POST /api/studio/tokens` | token 记账 | `project` 或 `project_id`、`tokens_in`、`tokens_out`、`waste_tokens`、`waste_reason`（waste>0 必填、≤240 字）、`model`、`sessions`、`day` |
+| `POST /api/studio/logs` | 每日 Agent log | `log_markdown` 必填、`projects`、`tasks_done`、`tasks_failed`、`self_review`、`day` |
 
 三条容易踩的：
 
@@ -356,10 +356,10 @@ curl -s -X PATCH "$BASE/api/studio/dispatch?id=<单 id>" \
 ```text
 1. GET  /api/studio/prompt?project=<id>     # 领活，拿 prompt
 2. （干活）
-3. POST /api/workbench/report               # outcome=advanced
+3. POST /api/studio/report               # outcome=advanced
 4. PATCH /api/studio/tasks?id=<id>          # status=completed
-5. POST /api/workbench/tokens               # 当天总量
-6. POST /api/workbench/logs                 # 收工交 log
+5. POST /api/studio/tokens               # 当天总量
+6. POST /api/studio/logs                 # 收工交 log
 卡住：POST /api/studio/check {task_id, reason}
 ```
 
@@ -374,7 +374,7 @@ curl -s -X PATCH "$BASE/api/studio/dispatch?id=<单 id>" \
 ## 14. 别做这些
 
 - 别直接写 `wb_*` 表（没有公开的 PostgREST 权限，写了也会被拒）；一律走接口。
-- 别改 `public.tasks` / `public.messages`——那是线上任务桥的。
+- 别改 `public.tasks` / `public.messages`——旧任务桥的历史数据，2026-11-13 起没有页面和接口再用它，数据原样保留。
 - 别把 token、密码、Cookie 塞进 `body` / `plan` / `detail` 这类文本字段。
 - 没有 `>=2` 次阶段样本时不要自己编 ETA；接口返回 `null` 就是样本不足。
 

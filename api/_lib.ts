@@ -1,8 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-export type AgentName = 'grokbot' | 'codex' | 'dev2';
-export type TaskStatus = 'pending' | 'working' | 'needs_input' | 'done' | 'failed';
-
 export function json(res: VercelResponse, status: number, value: unknown) {
   res.status(status).setHeader('Cache-Control', 'no-store').json(value);
 }
@@ -20,33 +17,6 @@ export function supabaseHeaders(key = env('SUPABASE_SERVICE_ROLE_KEY')) {
 export function bearer(req: VercelRequest): string | null {
   const value = req.headers.authorization;
   return typeof value === 'string' && value.startsWith('Bearer ') ? value.slice(7) : null;
-}
-
-/**
- * Reads a token from the environment without throwing.
- * A missing, empty, or whitespace-only value never becomes a matchable secret,
- * so an absent variable can never let an empty bearer token authenticate.
- */
-function tokenEnv(name: string): string | null {
-  const value = process.env[name];
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-export function agentForToken(req: VercelRequest): AgentName | null {
-  const token = bearer(req)?.trim();
-  if (!token) return null;
-  const agents: Array<[AgentName, string]> = [
-    ['grokbot', 'GROKBOT_BRIDGE_TOKEN'],
-    ['codex', 'CODEX_BRIDGE_TOKEN'],
-    ['dev2', 'DEV2_BRIDGE_TOKEN'],
-  ];
-  for (const [agent, name] of agents) {
-    const secret = tokenEnv(name);
-    if (secret && token === secret) return agent;
-  }
-  return null;
 }
 
 export async function getOwner(req: VercelRequest): Promise<string | null> {

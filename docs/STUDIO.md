@@ -1,6 +1,8 @@
-# Studio（本地四层工作台）
+# Studio（四层工作台 + 值班室）
 
-地址：`http://localhost:3120/studio`（`npm run dev:local` 起，只在本机可访问）
+地址：线上 https://codechat-five.vercel.app （`/` 就是 Studio，`/studio` 同样可用）；本地 `npm run dev:local` 后是 `http://localhost:3120/`。
+
+2026-11-13 起这是站上唯一的应用：旧的 `/workbench` 页面（功能被 Studio 全覆盖）和旧控制台（`/api/tasks` / `/api/messages` / `/api/agent/*`）已拆除，`/workbench` 301 到 `/studio`。
 
 四层：
 
@@ -50,7 +52,7 @@
 | GET/POST | `/api/studio/docs` | 研究/规划文档 |
 | GET | `/api/studio/prompt?task=<id>` 或 `?project=<id>` | **执行层**：生成可直接塞进上下文的执行摘要 prompt |
 | POST | `/api/studio/check` | **执行层**：申请检查 `{task_id\|project_id, reason, day?}`，会把任务标成有风险并在日程里放一条主人检查项 |
-| POST | `/api/workbench/report` / `tokens` / `logs` | 原有上报接口，继续用 |
+| POST | `/api/studio/report` / `tokens` / `logs` | 汇报、token 记账、每日 Agent log（POST 只认 bot 身份，账要记到某个 bot 名下） |
 
 ### 例子
 
@@ -80,7 +82,7 @@ curl -s -X POST "$BASE/api/studio/check" -H "Authorization: Bearer $TOKEN" \
 - **产品进度**：产品下未取消项目的进度均值；单项目进度优先用显式 `progress`，否则用任务完成率，再否则用阶段位置。
 - **到变现天数**：只累加“当前阶段之后”的阶段中位数；任一段样本 < 2 次就返回 `null`（界面显示“样本不足”），不猜。产品取旗下项目里最慢的那个。
 - **停滞**：`blocked`，或 `active` 且 3 天没推进。
-- **审计标记**：`no_log` / `spend_no_progress` / `declared_waste` / `spend_on_stalled`，定义见 `docs/WORKBENCH.md`。
+- **审计标记**：`no_log`（有消耗没交 log）、`spend_no_progress`（花了 token 但当天没推进任何项目）、`declared_waste`（bot 自报的空耗）、`spend_on_stalled`（token 花在停滞项目上，系统推断）。
 - **日界线**：`Asia/Colombo`。
 
 ## 本地验证方式
@@ -94,5 +96,6 @@ npm run typecheck
 
 ## 现在的状态
 
-- 站点、接口、迁移都只在本地 `workbench` 分支，**没有 push、没有部署**；线上 `codechat-five.vercel.app` 仍是旧的。
+- 线上 `codechat-five.vercel.app` 跑的就是这套：`/`（Studio）、`/studio`、`/api-docs`、`/api/studio/*`。
+- 旧的 `/workbench`、`/api/workbench/*`、`/api/tasks`、`/api/messages`、`/api/agent/*`、`worker/` 都已删除；`public.tasks` / `public.messages` 的历史数据留在库里没动。
 - 初始数据（3 个产品 / 3 个项目 / 10 条任务 / 6 个里程碑 / 4 条日程 / 2 篇文档）是按已知情况手工填的，不是编造的业务数据；阶段、进度、日程按需在页面上改。

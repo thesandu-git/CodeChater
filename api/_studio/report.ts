@@ -9,8 +9,8 @@ import {
   parseDay,
   today,
   uuidOrNull,
-  wbAgent,
 } from './_shared';
+import { wbAgent } from '../_identity';
 
 /** Resolve a project by uuid or exact name so a bot can report without ids. */
 async function resolveProject(value: unknown): Promise<{ id: string; name: string; stage: string; status: string; blocked_reason: string | null } | null | 'invalid'> {
@@ -132,6 +132,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return json(res, 405, { error: 'Method not allowed.' });
   } catch {
-    return json(res, 503, { error: 'Workbench is not configured.' });
+    return json(res, 503, { error: 'Studio is not configured.' });
   }
 }

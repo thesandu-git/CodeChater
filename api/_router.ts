@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { json } from './_lib';
 
 /**
- * Vercel Hobby 每次部署最多 12 个 serverless 函数，所以 /api/studio/*、/api/workbench/*、
- * /api/agent/* 各用一个 catch-all 函数（api/<group>/[...path].ts）转发到 server/<group>/ 里的实现。
+ * Vercel Hobby 每次部署最多 12 个 serverless 函数，所以 /api/studio/* 用一个
+ * catch-all 函数（api/studio/[...path].ts）转发到 api/_studio/ 里的实现。
  * 路由表是静态 import 的，打包时能被追踪到；不要改成按字符串动态 import。
  */
 

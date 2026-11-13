@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getOwner, json } from '../_lib';
-import { wbAgent } from '../_workbench/_shared';
+import { wbAgent } from '../_identity';
 
 export { json };
 
@@ -102,3 +102,18 @@ export function num(value: unknown, min: number, max: number): number | null {
   if (!Number.isFinite(n) || n < min || n > max) return null;
   return n;
 }
+
+/** 整数且落在区间内；小数、NaN、越界都返回 null。 */
+export function intIn(value: unknown, min: number, max: number): number | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return null;
+  return n >= min && n <= max ? n : null;
+}
+
+/** `text()` / `uuid()` 在汇报、记账里的别名：空值当“没填”，超长当“非法”。 */
+export const optionalText = text;
+export const uuidOrNull = uuid;
+
+export const REPORT_KINDS = ['progress', 'blocker', 'decision', 'milestone', 'note'] as const;
+export const OUTCOMES = ['advanced', 'unchanged', 'failed'] as const;
+

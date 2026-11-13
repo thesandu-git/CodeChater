@@ -80,12 +80,12 @@ curl -s -X POST https://codechat-five.vercel.app/api/studio/tasks \
 
 ```bash
 # 进度 / 阻塞
-curl -s -X POST https://codechat-five.vercel.app/api/workbench/report \
+curl -s -X POST https://codechat-five.vercel.app/api/studio/report \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"project_id":"<项目 id>","kind":"progress","outcome":"advanced","summary":"..."}'
 
 # 当天 token 总量（一天一次，覆盖不是累加）
-curl -s -X POST https://codechat-five.vercel.app/api/workbench/tokens \
+curl -s -X POST https://codechat-five.vercel.app/api/studio/tokens \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"project_id":"<项目 id>","tokens_in":0,"tokens_out":0,"model":"..."}'
 ```

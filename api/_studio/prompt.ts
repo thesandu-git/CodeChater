@@ -95,10 +95,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : '- 里程碑：无',
       '',
       '## 回传（必做）',
-      `1. 推进了：POST ${base}/api/workbench/report，body {"project":"${project.name}","kind":"progress","summary":"一句话","outcome":"advanced","percent":<0-100>}`,
+      `1. 推进了：POST ${base}/api/studio/report，body {"project":"${project.name}","kind":"progress","summary":"一句话","outcome":"advanced","percent":<0-100>}`,
       `2. 完成这条任务：PATCH ${base}/api/studio/tasks?id=${task.id}，body {"status":"completed"}`,
       `3. 卡住或需要主人检查：POST ${base}/api/studio/check，body {"task_id":"${task.id}","reason":"卡在哪"}`,
-      `4. token 记账：POST ${base}/api/workbench/tokens，{ "project":"${project.name}", "tokens_in":n, "tokens_out":n, "waste_tokens":n, "waste_reason":"仅当 >0" }`,
+      `4. token 记账：POST ${base}/api/studio/tokens，{ "project":"${project.name}", "tokens_in":n, "tokens_out":n, "waste_tokens":n, "waste_reason":"仅当 >0" }`,
       '',
       '不要改任务的状态之外的项目字段；阶段和变现口径由制定层决定。所有回传都用 `Authorization: Bearer <你的 bridge 令牌>`。',
     ].join('\n');
@@ -110,8 +110,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       task,
       prompt,
       contract: {
-        report: `${base}/api/workbench/report`,
-        tokens: `${base}/api/workbench/tokens`,
+        report: `${base}/api/studio/report`,
+        tokens: `${base}/api/studio/tokens`,
         complete: `${base}/api/studio/tasks?id=${task.id}`,
         check: `${base}/api/studio/check`,
       },

@@ -6,7 +6,12 @@
     }
   },
   "rewrites": [
+    { "source": "/", "destination": "/studio.html" },
     { "source": "/api-docs", "destination": "/docs/API.md" }
+  ],
+  "redirects": [
+    { "source": "/workbench", "destination": "/studio", "permanent": true },
+    { "source": "/workbench.html", "destination": "/studio", "permanent": true }
   ],
   "headers": [
     {

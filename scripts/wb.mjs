@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 工作台上报 CLI —— 给 Grokbot / Codex / Dev 2 / Hermes / OpenBot 用。
+// Studio 上报 CLI —— 给 Grokbot / Codex / Dev 2 / Hermes / OpenBot 用。
 // 只依赖 Node 18+ 的 fetch。令牌只从环境变量读，不要写进仓库。
 //
 //   set WB_BASE_URL=https://codechat-five.vercel.app
@@ -60,7 +60,7 @@ function need(value, name) {
 
 async function main() {
   if (command === 'help' || command === '--help' || command === '-h') {
-    console.log('用法：node scripts/wb.mjs <report|token|log|status> [选项]\n详见 docs/WORKBENCH.md');
+    console.log('用法：node scripts/wb.mjs <report|token|log|status> [选项]\n详见 docs/API.md');
     return;
   }
   if (!base || !token) return fail('先设置 WB_BASE_URL 和 WB_TOKEN。');
@@ -68,7 +68,7 @@ async function main() {
   if (command === 'report') {
     const summary = need(flag('summary'), 'summary');
     if (!summary) return;
-    await post('/api/workbench/report', {
+    await post('/api/studio/report', {
       project: flag('project') === true ? undefined : flag('project'),
       project_id: flag('project-id') === true ? undefined : flag('project-id'),
       kind: flag('kind', 'progress'),
@@ -90,7 +90,7 @@ async function main() {
     const tokensOut = flag('out', '0');
     const waste = flag('waste', '0');
     if (Number(waste) > 0 && !flag('reason')) return fail('空耗必须写 --reason，否则不接受记账。');
-    await post('/api/workbench/tokens', {
+    await post('/api/studio/tokens', {
       project: flag('project') === true ? undefined : flag('project'),
       project_id: flag('project-id') === true ? undefined : flag('project-id'),
       tokens_in: tokensIn,
@@ -111,7 +111,7 @@ async function main() {
     const { readFile } = await import('node:fs/promises');
     const markdown = await readFile(file, 'utf8');
     const projects = String(flag('projects', '') || '').split(',').map((item) => item.trim()).filter(Boolean);
-    await post('/api/workbench/logs', {
+    await post('/api/studio/logs', {
       log_markdown: markdown,
       projects,
       tasks_done: flag('done') === true ? undefined : flag('done'),
@@ -123,14 +123,14 @@ async function main() {
   }
 
   if (command === 'status') {
-    const response = await fetch(`${base}/api/workbench/projects`, {
+    const response = await fetch(`${base}/api/studio/projects`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) return fail(`读取失败：HTTP ${response.status} ${JSON.stringify(data)}`);
     const items = Array.isArray(data) ? data : [];
     if (!items.length) {
-      console.log('还没有项目。先在 /workbench 里加一个。');
+      console.log('还没有项目。先在 /studio 里加一个。');
       return;
     }
     for (const project of items) {

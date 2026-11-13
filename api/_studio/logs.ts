@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { db, getOwner, json, readJson } from '../_lib';
-import { intIn, optionalText, parseDay, today, wbAgent } from './_shared';
+import { intIn, optionalText, parseDay, today } from './_shared';
+import { wbAgent } from '../_identity';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -72,6 +73,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return json(res, 405, { error: 'Method not allowed.' });
   } catch {
-    return json(res, 503, { error: 'Workbench is not configured.' });
+    return json(res, 503, { error: 'Studio is not configured.' });
   }
 }

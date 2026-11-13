@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomBytes } from 'node:crypto';
 import { db, readJson } from '../_lib';
-import { hashToken } from '../_workbench/_shared';
+import { hashToken } from '../_identity';
 import { bearerToken, identify, json, num, oneOf, registryToken, text } from './_shared';
 
 /**

@@ -6,7 +6,6 @@
     "dev": "vercel dev",
     "dev:local": "node --env-file=.env.local --import tsx scripts/dev-local.mjs",
     "deploy": "vercel",
-    "worker": "node --env-file=worker/.env worker/worker.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

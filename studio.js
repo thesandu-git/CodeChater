@@ -767,7 +767,7 @@ function renderLog() {
       <td class="num">${compact(a.stalledTokens)}</td>
       <td>${a.flags.map((f) => `<span class="tag ${f === 'no_log' || f === 'spend_on_stalled' ? 'bad' : 'warn'}">${esc(FLAG[f] || f)}</span>`).join('') || '—'}</td>
     </tr>`).join('')}</tbody></table></div>`
-    : '<div class="empty">今天还没有 token 记账。等 bot 调用 /api/workbench/tokens。</div>';
+    : '<div class="empty">今天还没有 token 记账。等 bot 调用 /api/studio/tokens。</div>';
 
   $('projectProgress').innerHTML = (v.projects || []).length
     ? (v.projects || []).map((p) => `<div class="pl-row">

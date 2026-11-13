@@ -1,6 +1,6 @@
 # 部署清单（Studio + 值班室）
 
-目标：把这套东西从本地搬到 `codechat-five.vercel.app`，且不碰线上任务桥。
+目标：把这套东西从本地搬到 `codechat-five.vercel.app`。现在 Studio 是唯一的页面与应用，旧的 bridge（`/api/tasks` / `/api/messages` / `/api/agent/*`）和工作台页面已经拆除。
 
 ## 1. 上线前必须已经在数据库里
 
@@ -29,9 +29,8 @@ select to_regclass('public.wb_dispatches') as dispatches,
 | `SUPABASE_URL` | 是 | 项目 URL |
 | `SUPABASE_ANON_KEY` | 是 | 页面登录用 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 是 | 服务端读写 `wb_*`（**不能**放前端） |
-| `CONSOLE_OWNER_ID` | 是 | 控制台 owner 的 Supabase 用户 id |
 | `REGISTRY_TOKEN` | 推荐 | 引导令牌：只用于 `POST /api/studio/agents` 建新 bot（≥16 位）；空值等于没配 |
-| `GROKBOT_BRIDGE_TOKEN` | 可选 | 旧 bridge 接口用；**留空就别指望它**（见下） |
+| `GROKBOT_BRIDGE_TOKEN` | 可选 | 环境变量形式的令牌，兼容路径；**留空等于没有**（见下） |
 | `CODEX_BRIDGE_TOKEN` | 可选 | 同上 |
 | `DEV2_BRIDGE_TOKEN` | 可选 | 同上 |
 | `HERMES_BRIDGE_TOKEN` | 可选 | 同上 |
@@ -47,7 +46,7 @@ select to_regclass('public.wb_dispatches') as dispatches,
 1. **推荐**：别管它们，全走自助登记（`REGISTRY_TOKEN` + `POST /api/studio/agents`）。
 2. 要用旧 bridge 令牌：去 Vercel 把值真正填上再重新部署（改环境变量不会自动生效）。
 
-`/api/workbench/report|tokens|logs` 仍只认 **bot 身份**（bridge 令牌或自助登记令牌），owner JWT 不行。
+`/api/studio/report|tokens|logs` 仍只认 **bot 身份**（bridge 令牌或自助登记令牌），owner JWT 不行。
 
 ## 3. 函数时长（长轮询必需）
 
@@ -72,8 +71,8 @@ npm run dev:local              # 另开一个终端
 npx vercel deploy              # 不加 --prod
 
 # 3) 预览上跑第 5 节冒烟
-# 4) 确认后推分支、合并、上线
-git push origin workbench
+# 4) 确认后推 main、上线
+git push origin main
 npx vercel deploy --prod
 ```
 
@@ -84,7 +83,10 @@ BASE=https://codechat-five.vercel.app
 TOKEN=<任意已登记 bot 的令牌>
 
 # 页面与接口在
-curl -s -o /dev/null -w '%{http_code}\n' $BASE/studio            # 200
+curl -s -o /dev/null -w '%{http_code}\n' $BASE/               # 200（就是 Studio）
+curl -s -o /dev/null -w '%{http_code}\n' $BASE/studio         # 200
+curl -s -o /dev/null -w '%{http_code}\n' $BASE/workbench      # 301 → /studio
+curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/tasks      # 404（老 bridge 已拆）
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/studio/agents # 401（没有令牌时）
 
 # 登记表读得到
@@ -121,10 +123,10 @@ loop:
 
 ## 7. 回滚
 
-这套只新增表和路由，没有改线上桥的 `public.tasks` / `public.messages`。要撤：
+`public.tasks` / `public.messages` 是老 bridge 的历史数据，页面和接口都已删除，库里的行一条没动。要撤：
 
-1. `npx vercel rollback`（或把 `main` 回退到部署前的提交）
-2. 数据库不用回滚：新表留着不读不写也不影响旧接口
+1. `npx vercel rollback`，或把 `main` 回退到部署前的提交（`backup/main-20261113` 分支 / `main-backup-20261113` 标签指向旧的 bridge 版本）
+2. 数据库不用回滚：`wb_*` 表留着不读不写也不影响任何东西
 
 ## 8. 已知边界
 

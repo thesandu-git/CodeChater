@@ -1,108 +1,53 @@
-# Agent Bridge Console
+# CodeChater Studio
 
-A small, separate Vercel + Supabase console for exchanging tasks and replies between a person, Grokbot, and two agent workers: Codex and Dev 2. It is intentionally isolated from LANKAmate.
+一个 Vercel + Supabase 的项目管理平台：产品与进度、Kanban、日历/时间线、Agent Log，外加一个「值班室」——bot 自助登记、派单队列、传信员待命。用途是让不同平台的 bot（Grokbot / Codex / Hermes / OpenBot / 以后新建的）接进来领活、汇报、记账，重点是传递编程任务。
 
-## Current boundary
+- 线上：https://codechat-five.vercel.app （`/` 就是 Studio）
+- 接口手册：https://codechat-five.vercel.app/api-docs （或本仓库 [`docs/API.md`](docs/API.md)）
+- **怎么安排任务**：看 [`AGENTS.md`](AGENTS.md)（给 bot 读的速查），细节在 [`docs/DELEGATION.md`](docs/DELEGATION.md)
+- 部署与环境变量：[`docs/DEPLOY.md`](docs/DEPLOY.md)；站点结构：[`docs/STUDIO.md`](docs/STUDIO.md)
 
-This scaffold is a generic message relay. It does not make the current Codex chat externally callable, and it does not connect to a Grokbot until that bot is configured to call the HTTP endpoints below. A Codex worker can be connected through an OpenAI Agents API application or a local worker, after its runtime and repository access are selected.
+## 四层 + 值班室
 
-## Deploy outline
+| 层 | 内容 |
+|---|---|
+| 产品与进度 | 左侧产品栏（悬停展开）、环形图看离变现多远、项目按 执行/完成/取消/暂停/未启动 分列；项目弹窗含参与 bot、当前任务、甘特与里程碑、研究文档 |
+| Kanban | 五种状态（正常推进 / 有风险 / 受阻 / 完成 / 暂停），卡片可拖拽改状态 |
+| 日历 / 时间线 | 需要主人亲手做或把关的节点特别标注；时间线每个项目一条曲线 |
+| Agent Log | 按来源 / bot / 项目看 token，空耗与审计标记、项目推进一览、当日 log 原文 |
+| 值班室 | bot 登记（发一次性令牌）、派单队列、传信员长轮询待命 |
 
-1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor. For an existing project created from an earlier version, run the migrations under `supabase/migrations/` in order instead of re-running the schema.
-2. Create an owner account in Supabase Auth. Keep public sign-up disabled unless you intend to allow more users.
-3. Deploy this directory as its own Vercel project.
-4. Add the environment variables from `.env.example` in Vercel. Set a separate random bearer token for each agent (`GROKBOT_BRIDGE_TOKEN`, `CODEX_BRIDGE_TOKEN`, `DEV2_BRIDGE_TOKEN`). Never put Groq/OpenAI service keys in browser code or message rows.
-5. Configure Grokbot to submit work to `POST /api/agent/tasks`, then poll its task at `GET /api/agent/tasks?agent=grokbot&task_id=<id>` for replies.
-6. On the always-on computer, sign in to the local Codex CLI, copy `worker/.env.example` to `worker/.env`, set the console URL, Codex bridge token, project checkout path, and a worktree folder outside that checkout, then start `npm run worker`. Keep that computer awake and connected.
-7. To add Dev 2, set `DEV2_BRIDGE_TOKEN` in Vercel and give that value to the Dev 2 worker only. Dev 2 needs no code changes here: it polls the endpoints in "Dev 2 worker contract" below.
-8. Confirm with a non-sensitive task before adding project credentials or source files.
+## 接入与派活（一句话）
 
-## Studio（四层工作台 + 值班室）与派活
+先有项目 → 建任务并指定 `assignee_agent` → 系统自动往值班队列放一行「有任务」（只有标题和 id，没有正文）→ 传信员叫醒那个 bot → bot 自己 `GET /api/studio/prompt?task=<id>` 取正文干活 → 做完 `PATCH /api/studio/tasks?id=<id>`。
 
-同一部署里的 `/studio`：产品与进度、Kanban、日历/时间线、Agent Log，加一个「值班」页（bot 登记 + 派单队列 + 传信员待命）。
+- 接入一次：`POST /api/studio/agents`，带引导令牌 `REGISTRY_TOKEN`，拿回自己的 `wbt_` 令牌（只显示一次）
+- 所有 `/api/studio/*` 对 owner 和 bot 权限相同，不按层设限；只有 `report` / `tokens` / `logs` 的 POST 需要 bot 身份（账要记到某个 bot 名下）
 
-**怎么安排任务，看 [`AGENTS.md`](AGENTS.md)**（给 bot 读的速查），细节在 [`docs/DELEGATION.md`](docs/DELEGATION.md)。
-接口手册：[`docs/API.md`](docs/API.md)（线上 https://codechat-five.vercel.app/api-docs ）；部署与环境变量：[`docs/DEPLOY.md`](docs/DEPLOY.md)。
+## 部署
 
-- 接入：`POST /api/studio/agents`，带引导令牌 `REGISTRY_TOKEN` 登记一次，拿回自己的 `wbt_` 令牌（只显示一次）
-- 派活：`POST /api/studio/tasks` 带 `assignee_agent` → 自动入队一行「有任务」；传信员 `GET /api/studio/inbox` 取走并叫醒它
-- 执行：被叫醒的 bot 用 `GET /api/studio/prompt?task=<id>` 取正文，做完 `PATCH /api/studio/tasks?id=<id>`
-- 旧的 bridge 令牌（`GROKBOT_BRIDGE_TOKEN` 等）在这个项目里是空值，已改走自助登记；详见 `docs/DEPLOY.md`
-
-## AI 工作台（/workbench）
-
-同一部署里的第二个页面：追踪产品预案与项目数量、项目卡点、概念到变现的剩余时间，以及每个 bot 每天的 token 消耗和 Agent log。
-
-- 页面：`/workbench`（Supabase Auth 同一账户）
-- 表：`wb_*`（见 `supabase/migrations/20261111000000_add_workbench.sql`），与 `tasks` / `messages` 完全分离，不改变任务桥行为
-- bot 上报：`POST /api/workbench/report`、`/tokens`、`/logs`，用各 bot 自己的 bridge 令牌；CLI 在 `scripts/wb.mjs`
-- 完整说明：`docs/WORKBENCH.md`
-
-## Agent HTTP contract
-
-### Fetch assigned tasks
-
-`GET /api/agent/tasks?agent=grokbot`, `GET /api/agent/tasks?agent=codex`, or `GET /api/agent/tasks?agent=dev2`
-
-Header: `Authorization: Bearer <GROKBOT_BRIDGE_TOKEN>`, `Authorization: Bearer <CODEX_BRIDGE_TOKEN>`, or `Authorization: Bearer <DEV2_BRIDGE_TOKEN>`
-
-Returns pending tasks assigned to that agent. The `agent` query value must match the bearer token, and each token only ever sees the queue assigned to it, so a Codex token cannot read Dev 2 tasks and a Dev 2 token cannot read Codex tasks. A task body contains only the task text and identifiers; do not attach secrets to tasks.
-
-### Send a Grokbot request to Codex or Dev 2
-
-`POST /api/agent/tasks`
-
-Header: `Authorization: Bearer <GROKBOT_BRIDGE_TOKEN>`
-
-JSON body:
-
-```json
-{
-  "title": "Review the file scanner",
-  "body": "Inspect the scan flow and propose a minimal Groq migration. Do not change unrelated behavior.",
-  "assigned_to": "dev2"
-}
+```bash
+npm install
+npm run typecheck
+npm run dev:local                # 本地 http://localhost:3120/
+npx vercel deploy --prod         # 或推 main 由 Vercel 部署
 ```
 
-`assigned_to` is optional and accepts `codex` (the default, so existing callers keep working unchanged) or `dev2`; any other value is rejected with `400`. The response is `{ "id": "...", "status": "pending", "assigned_to": "dev2" }`. Save the returned `id`; Grokbot can retrieve the worker's reply and conversation using `GET /api/agent/tasks?agent=grokbot&task_id=<id>`.
+上线前数据库要有 `supabase/migrations/` 里的四个迁移（按顺序、幂等）。环境变量见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
 
-### Post a reply
+## 已经拆掉的东西
 
-`POST /api/agent/messages`
+2026-11-13 起只保留 Studio 一个应用：
 
-Header: the same agent-specific bearer token. JSON body:
+| 拆掉的 | 原用途 | 现在 |
+|---|---|---|
+| `/workbench` 页面 + `/api/workbench/*` | 第一版仪表盘，功能已被 Studio 全覆盖 | 页面 301 到 `/studio`；上报接口迁到 `/api/studio/report`、`/api/studio/tokens`、`/api/studio/logs` |
+| 首页旧控制台（`/` 的任务 + 对话面板） | 手动建任务、和 bot 对话 | 删除；`/` 现在是 Studio |
+| `/api/tasks`、`/api/messages`、`/api/agent/*`、`worker/` | 旧的 Agent Bridge 任务队列与本地 Codex worker | 删除；`public.tasks` / `public.messages` 的历史数据原样留在库里，没有页面或接口再读它 |
 
-```json
-{
-  "task_id": "uuid",
-  "body": "Progress or final response",
-  "status": "working"
-}
-```
+## 边界与安全
 
-Allowed status values are `working`, `needs_input`, `done`, and `failed`. Only the agent a task is assigned to may change its status; Grokbot can add a message to the conversation but never rewrites a worker's status.
-
-## Dev 2 worker contract
-
-Dev 2 is a third, independent agent identity. It talks to the same endpoints as Codex, authenticated with `DEV2_BRIDGE_TOKEN`:
-
-1. Fetch pending work: `GET /api/agent/tasks?agent=dev2`. It returns only tasks with `assigned_to: "dev2"`.
-2. Read one thread: `GET /api/agent/tasks?agent=dev2&task_id=<id>` returns the task plus its messages. Grokbot, as the task creator, can also read that thread; a Codex token gets `404` for it.
-3. Reply and report state: `POST /api/agent/messages` with `{ "task_id": "<id>", "body": "...", "status": "done" }`.
-
-`DEV2_BRIDGE_TOKEN` is read only on the server. Set it in the Vercel project secrets; never put it in code, logs, task text, or message rows. If the variable is missing or empty it never matches, so a request cannot authenticate against a blank token. A Dev 2 worker should poll on its own interval and treat every task body as untrusted input.
-
-## Safety and scope
-
-- The console is a separate project; it does not edit LANKAmate.
-- The Supabase service-role key is server-side only. Browser requests use the public anon key and a Supabase Auth access token.
-- Each dashboard task belongs to the signed-in owner. Agent endpoints use distinct server-side tokens.
-- A task is addressed to one worker (`codex` by default, or `dev2`), and no agent token can read or update a task addressed to another agent.
-- The Vercel API only relays tasks and messages. The local worker runs Codex in a separate Git worktree and does not push, merge, or deploy.
-- The worker has a task timeout and redacts common Groq/OpenAI key formats from its reply before storing them.
-- Worktree changes remain on the local computer under `CODEX_WORKTREE_ROOT`; they are not pushed automatically. The worker hides local paths in replies.
-- Do not put API keys in task content. Bot messages are untrusted instructions and should be reviewed in the console.
-
-## Not yet connected
-
-The actual Grokbot adapter, repository checkout, and deployment credentials are environment-specific. This console provides a generic queue and message contract for those connections.
+- Supabase service-role key 只在服务端；浏览器用 anon key + Supabase Auth 登录令牌。
+- bot 令牌（`wbt_`）库里只存 sha256，明文只在登记/轮换时返回一次。
+- Vercel 只放队列和接口；**传信员得跑在能长期存活的地方**（本机自启或某个 bot 进程）。
+- 不要把 API 密钥、密码、Cookie 写进任务的 `plan` / `body` / 汇报的 `detail`。
