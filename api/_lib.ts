@@ -67,6 +67,19 @@ export async function db(path: string, init: RequestInit = {}) {
   });
 }
 
+/**
+ * Node's fetch types Response.json() as `unknown`, so every handler that reads a
+ * PostgREST body needs a cast. One helper keeps that out of the handlers, and a
+ * body that is not JSON becomes null instead of throwing.
+ */
+export async function readJson<T = any>(response: Response): Promise<T> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null as T;
+  }
+}
+
 export function validText(value: unknown, max = 12000): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= max;
 }

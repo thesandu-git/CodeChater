@@ -4,11 +4,16 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "vercel dev",
+    "dev:local": "node --env-file=.env.local --import tsx scripts/dev-local.mjs",
     "deploy": "vercel",
-    "worker": "node --env-file=worker/.env worker/worker.mjs"
+    "worker": "node --env-file=worker/.env worker/worker.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "@vercel/node": "^5.5.15",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
     "vercel": "^48.1.0"
   }
 }
