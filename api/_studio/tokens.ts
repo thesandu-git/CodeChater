@@ -3,6 +3,14 @@ import { db, getOwner, json, readJson } from '../_lib';
 import { intIn, optionalText, parseDay, today, uuidOrNull } from './_shared';
 import { wbAgent } from '../_identity';
 
+/** 记账只认这三个数值字段；写成 total_tokens 之类会被静默记成 0，所以直接拒。 */
+const TOKEN_FIELDS = ['tokens_in', 'tokens_out', 'waste_tokens'] as const;
+
+const TOKEN_KEYS = new Set<string>([
+  'day', 'project', 'project_id', 'tokens_in', 'tokens_out', 'waste_tokens',
+  'waste_reason', 'model', 'sessions', 'note',
+]);
+
 function money(value: unknown, label: string): number | null {
   if (value === undefined || value === null || value === '') return 0;
   const parsed = Number(value);
@@ -16,6 +24,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!agent) return json(res, 401, { error: 'Invalid agent token.' });
 
       const body = (req.body ?? {}) as Record<string, unknown>;
+
+      const unknown = Object.keys(body).filter((key) => !TOKEN_KEYS.has(key));
+      if (unknown.length) {
+        return json(res, 400, {
+          error: `不认的字段：${unknown.join('、')}。token 记账只认 tokens_in / tokens_out / waste_tokens。`,
+          hint: '一天报一次当天总量，写成 {"tokens_in": <数字>, "tokens_out": <数字>}；空耗放 waste_tokens。total_tokens 这类字段不在契约里，会被记成 0。',
+          fields: TOKEN_FIELDS,
+        });
+      }
+      if (!TOKEN_FIELDS.some((key) => body[key] !== undefined && body[key] !== null && body[key] !== '')) {
+        return json(res, 400, {
+          error: 'body 里没有任何可识别的 token 数字：至少要给 tokens_in 或 tokens_out（waste_tokens 可选）。',
+          fields: TOKEN_FIELDS,
+        });
+      }
+
       const day = parseDay(body.day) ?? today();
       const tokensIn = money(body.tokens_in, 'tokens_in');
       const tokensOut = money(body.tokens_out, 'tokens_out');
