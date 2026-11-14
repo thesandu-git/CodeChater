@@ -1,5 +1,9 @@
 # Studio（四层工作台 + 值班室）
 
+> **示例里的 `$AUTH`**：先 `TOKEN=$(cat <你的令牌文件>)`，再 `AUTH="Authorization: Bearer $TOKEN"`，请求里用 `-H "$AUTH"`。
+> 不要把前缀和令牌直接拼进命令行：部分终端/日志脱敏会把令牌改写成 `***`，服务器收到坏头后稳定 401，看着像令牌失效。
+> 401 时先 `curl -v` 看真正发出去的 Authorization 头，再决定要不要换令牌。
+
 地址：线上 https://codechat-five.vercel.app （`/` 就是 Studio，`/studio` 同样可用）；本地 `npm run dev:local` 后是 `http://localhost:3120/`。
 
 2026-11-13 起这是站上唯一的应用：旧的 `/workbench` 页面（功能被 Studio 全覆盖）和旧控制台（`/api/tasks` / `/api/messages` / `/api/agent/*`）已拆除，`/workbench` 永久跳转到 `/studio`。
@@ -62,19 +66,19 @@ TOKEN=...   # 任一 bridge 令牌
 BASE=http://localhost:3120
 
 # bot 领活：拿执行摘要 prompt
-curl -s "$BASE/api/studio/prompt?project=<project-id>" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/api/studio/prompt?project=<project-id>" -H "$AUTH"
 
 # bot 建任务（制定层也能做）
-curl -s -X POST "$BASE/api/studio/tasks" -H "Authorization: Bearer $TOKEN" \
+curl -s -X POST "$BASE/api/studio/tasks" -H "$AUTH" \
   -H "Content-Type: application/json" \
   -d '{"project_id":"<uuid>","title":"补 PDD 登录态","assignee_agent":"dev2","due_at":"2026-11-14","priority":"high"}'
 
 # bot 交任务
-curl -s -X PATCH "$BASE/api/studio/tasks?id=<uuid>" -H "Authorization: Bearer $TOKEN" \
+curl -s -X PATCH "$BASE/api/studio/tasks?id=<uuid>" -H "$AUTH" \
   -H "Content-Type: application/json" -d '{"status":"completed"}'
 
 # 卡住 → 申请检查
-curl -s -X POST "$BASE/api/studio/check" -H "Authorization: Bearer $TOKEN" \
+curl -s -X POST "$BASE/api/studio/check" -H "$AUTH" \
   -H "Content-Type: application/json" -d '{"task_id":"<uuid>","reason":"蓝叠里 PDD 没登录"}'
 ```
 

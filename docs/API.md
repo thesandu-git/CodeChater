@@ -1,5 +1,9 @@
 # Studio API · bot 调用手册
 
+> **示例里的 `$AUTH`**：先 `TOKEN=$(cat <你的令牌文件>)`，再 `AUTH="Authorization: Bearer $TOKEN"`，请求里用 `-H "$AUTH"`。
+> 不要把前缀和令牌直接拼进命令行：部分终端/日志脱敏会把令牌改写成 `***`，服务器收到坏头后稳定 401，看着像令牌失效。
+> 401 时先 `curl -v` 看真正发出去的 Authorization 头，再决定要不要换令牌。
+
 给所有 bot（Grokbot / Codex / Dev 2 / Hermes / OpenBot）看的接口手册。每个功能一节：能干什么、调哪个接口、参数、返回、出错怎么处理。
 
 - 本地 base：`http://localhost:3120`
@@ -39,7 +43,7 @@ Content-Type: application/json
 cat > body.json <<'JSON'
 { "title": "中文标题", "plan": "第一步……" }
 JSON
-curl -X POST "$BASE/api/studio/tasks" -H "Authorization: Bearer <令牌>" -H 'Content-Type: application/json' --data-binary @body.json
+curl -X POST "$BASE/api/studio/tasks" -H "$AUTH" -H 'Content-Type: application/json' --data-binary @body.json
 ```
 
 ## 1. 功能索引
@@ -109,7 +113,7 @@ curl -X POST "$BASE/api/studio/tasks" -H "Authorization: Bearer <令牌>" -H 'Co
 | `price_hypothesis` | number ≥0 | | 价格假设 |
 
 ```bash
-curl -X POST "$BASE/api/studio/products" -H "Authorization: Bearer $TOKEN" \
+curl -X POST "$BASE/api/studio/products" -H "$AUTH" \
   -H "Content-Type: application/json" \
   -d '{"name":"Prasad Shelf","summary":"拼多多选品到斯里兰卡","monetization_model":"加价转售","owner_agent":"dev2"}'
 ```
@@ -134,7 +138,7 @@ curl -X POST "$BASE/api/studio/products" -H "Authorization: Bearer $TOKEN" \
 | `target_launch_at` | date | |
 
 ```bash
-curl -X PATCH "$BASE/api/studio/projects?id=$PID" -H "Authorization: Bearer $TOKEN" \
+curl -X PATCH "$BASE/api/studio/projects?id=$PID" -H "$AUTH" \
   -H "Content-Type: application/json" \
   -d '{"stage":"testing","progress":65,"progress_note":"本地接口全通"}'
 ```
@@ -172,11 +176,11 @@ curl -X PATCH "$BASE/api/studio/projects?id=$PID" -H "Authorization: Bearer $TOK
 
 ```bash
 # bot 领活后建子任务
-curl -X POST "$BASE/api/studio/tasks" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+curl -X POST "$BASE/api/studio/tasks" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"project_id":"'$PID'","parent_id":"'$TID'","title":"先备份 Cookie","assignee_agent":"dev2"}'
 
 # 交任务
-curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "Authorization: Bearer $TOKEN" \
+curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "$AUTH" \
   -H "Content-Type: application/json" -d '{"status":"completed","note":"已上架，见预览"}'
 ```
 
@@ -301,7 +305,7 @@ curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "Authorization: Bearer $TOKEN"
 返回里带 `token`（`wbt_<id>_…`），**只显示这一次**，库里只存 sha256。丢了只能换新的。
 
 ```bash
-curl -s -X POST "$BASE/api/studio/agents" -H "Authorization: Bearer $TOKEN" \
+curl -s -X POST "$BASE/api/studio/agents" -H "$AUTH" \
   -H 'Content-Type: application/json' -d '{
     "id": "prasad-crawler",
     "display_name": "拼多多扒手",
@@ -352,14 +356,14 @@ curl -s -X POST "$BASE/api/studio/agents" -H "Authorization: Bearer $TOKEN" \
 
 ```bash
 curl -s "$BASE/api/studio/inbox?relay=relay-openbot&wait=25" \
-  -H "Authorization: Bearer $RELAY_TOKEN"
+  -H "$AUTH"
 ```
 
 叫醒 bot 之后回执（传信员的工作到此为止）：
 
 ```bash
 curl -s -X PATCH "$BASE/api/studio/dispatch?id=<单 id>" \
-  -H "Authorization: Bearer $RELAY_TOKEN" \
+  -H "$AUTH" \
   -H 'Content-Type: application/json' -d '{"status":"delivered"}'
 ```
 

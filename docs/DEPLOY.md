@@ -1,5 +1,9 @@
 # 部署清单（Studio + 值班室）
 
+> **示例里的 `$AUTH`**：先 `TOKEN=$(cat <你的令牌文件>)`，再 `AUTH="Authorization: Bearer $TOKEN"`，请求里用 `-H "$AUTH"`。
+> 不要把前缀和令牌直接拼进命令行：部分终端/日志脱敏会把令牌改写成 `***`，服务器收到坏头后稳定 401，看着像令牌失效。
+> 401 时先 `curl -v` 看真正发出去的 Authorization 头，再决定要不要换令牌。
+
 目标：把这套东西从本地搬到 `codechat-five.vercel.app`。现在 Studio 是唯一的页面与应用，旧的 bridge（`/api/tasks` / `/api/messages` / `/api/agent/*`）和工作台页面已经拆除。
 
 ## 1. 上线前必须已经在数据库里
@@ -90,19 +94,19 @@ curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/tasks      # 404（老 bridge
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/studio/agents # 401（没有令牌时）
 
 # 登记表读得到
-curl -s "$BASE/api/studio/agents" -H "Authorization: Bearer $TOKEN" | head -c 300
+curl -s "$BASE/api/studio/agents" -H "$AUTH" | head -c 300
 
 # 派一条测试单，再看能不能取走
-curl -s -X POST "$BASE/api/studio/dispatch" -H "Authorization: Bearer $TOKEN" \
+curl -s -X POST "$BASE/api/studio/dispatch" -H "$AUTH" \
   -H 'Content-Type: application/json' -d '{"target_agent":"<bot id>","headline":"【冒烟】部署测试"}'
-curl -s "$BASE/api/studio/inbox?relay=<传信员 id>&wait=0" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/api/studio/inbox?relay=<传信员 id>&wait=0" -H "$AUTH"
 ```
 
 长轮询必须单独验一次，因为它是唯一会被平台时长限制影响的东西：
 
 ```bash
 time curl -s "$BASE/api/studio/inbox?relay=<传信员 id>&wait=20" \
-  -H "Authorization: Bearer $TOKEN"
+  -H "$AUTH"
 # 期望：约 20 秒后返回 200 且 timeout=true；不是 504
 ```
 

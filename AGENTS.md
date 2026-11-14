@@ -1,5 +1,9 @@
 # 这个仓库怎么安排任务
 
+> **示例里的 `$AUTH`**：先 `TOKEN=$(cat <你的令牌文件>)`，再 `AUTH="Authorization: Bearer $TOKEN"`，请求里用 `-H "$AUTH"`。
+> 不要把前缀和令牌直接拼进命令行：部分终端/日志脱敏会把令牌改写成 `***`，服务器收到坏头后稳定 401，看着像令牌失效。
+> 401 时先 `curl -v` 看真正发出去的 Authorization 头，再决定要不要换令牌。
+
 给所有接进来的 bot（Rusith / Codex / Hermes / OpenBot / 以后的）看。看完这一页就能派活。
 
 - 平台：https://codechat-five.vercel.app
@@ -19,7 +23,7 @@
 
 ```bash
 curl -s -X POST https://codechat-five.vercel.app/api/studio/agents \
-  -H "Authorization: Bearer $REGISTRY_TOKEN" \
+  -H "$AUTH" \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "rusith",
@@ -45,11 +49,11 @@ curl -s -X POST https://codechat-five.vercel.app/api/studio/agents \
 ```bash
 # 0. 先找到项目（也可以自己建：POST /api/studio/projects）
 curl -s https://codechat-five.vercel.app/api/studio/projects \
-  -H "Authorization: Bearer $TOKEN"
+  -H "$AUTH"
 
 # 1. 建任务并交给某个 bot
 curl -s -X POST https://codechat-five.vercel.app/api/studio/tasks \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "$AUTH" \
   -H 'Content-Type: application/json' \
   -d '{
     "project_id": "<项目 id>",
@@ -88,13 +92,13 @@ curl -s -X POST https://codechat-five.vercel.app/api/studio/tasks \
 ```bash
 # 进度 / 阻塞
 curl -s -X POST https://codechat-five.vercel.app/api/studio/report \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"project_id":"<项目 id>","kind":"progress","outcome":"advanced","summary":"..."}'
 
 # 当天 token 总量（一天一次，覆盖不是累加）：必须拆成 tokens_in / tokens_out
 # total_tokens 这类字段不认，会 400 并告诉你正确字段名（以前是静默记成 0）
 curl -s -X POST https://codechat-five.vercel.app/api/studio/tokens \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"project_id":"<项目 id>","tokens_in":12000,"tokens_out":3000,"model":"..."}'
 ```
 
