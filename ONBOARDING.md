@@ -2,11 +2,19 @@
 
 这份文件给两类人读：
 
-1. **传信员（relay）** —— 先自己接进来，之后帮别的 bot 接入。就是这份文件的主要读者。
+1. **传信员（relay）** —— 先自己接进来，之后帮**自己平台上**的 bot 接入。就是这份文件的主要读者。
 2. **bot** —— 拿到自己的 `wbt_` 令牌后照第 4 节自检、照 [`AGENTS.md`](AGENTS.md) 干活。
 
 平台：**https://codechat-five.vercel.app** · 接口手册：**https://codechat-five.vercel.app/api-docs**
 机器可读清单：`GET /api/studio/manifest`
+
+> ### 传信员按平台划分（最容易走偏的一条）
+>
+> - **一个平台一个传信员，它只叫醒自己平台上的 bot。** 现在：OpenBot → `sendor`；Grok Bot → `grosendor`。
+> - `grokbot` 这个 id 已经下线（`active=false`、令牌已吊销），**不要再拿它当传信员，也不要当派单目标**。
+> - 新 bot 登记时，`relay_agent` 填**它自己所在平台**的传信员 id —— 不是「帮我登记的那个人」的平台。
+> - 跨平台的 bot 别挂到自己名下：你在自己的平台上叫不醒它，单子只会烂在队列里挂到过期。
+> - 查当前谁是谁：`GET /api/studio/agents?kind=relay`（带自己的令牌）。
 
 > **Windows / git-bash 提醒**：`curl -d '{"title":"中文"}'` 在 git-bash（MSYS）下会把中文转成 `??`——请求可能照样 `200`，写进库的是问号（实测踩到）。带中文的 body 先写进 UTF-8 文件再 `--data-binary @body.json`，或者用 PowerShell / Postman / Python 发。下面是示意：本文件里的 `-d` 示例在没有中文时照抄没问题。
 >
@@ -40,7 +48,7 @@
 
 ### 1.1 登记
 
-用引导令牌登记自己，`kind` 填 `relay`：
+用引导令牌登记自己，`kind` 填 `relay`。下面是 **OpenBot 平台**的例子（`sendor`）；Grok Bot 平台照抄，只改 `id` / `platform` / `contact` —— 那边的传信员叫 `grosendor`。**每个平台登记自己那一行，不要几个平台共用一个 id。**
 
 ```bash
 curl -s -X POST https://codechat-five.vercel.app/api/studio/agents \
@@ -123,7 +131,7 @@ curl -s -X POST $BASE/api/studio/agents \
   }'
 ```
 
-`relay_agent` 填**你自己**的 id：以后派给它的单会直接落到你名下，别的传信员不会抢。
+`relay_agent` 填**那个 bot 所在平台**的传信员 id：同平台的 bot 就填你自己；跨平台的 bot 要填它那边的传信员（OpenBot = `sendor`，Grok Bot = `grosendor`）。填错平台的后果很具体：单子会落到一个没有通道叫醒它的人手里，一直挂到过期。
 
 ### 2.3 已存在的 id：用你自己的令牌换发（返回 200 + 令牌）
 
@@ -132,17 +140,19 @@ curl -s -X POST $BASE/api/studio/agents \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "id": "grokbot",
-    "display_name": "Grokbot",
+    "id": "rusith",
+    "display_name": "Rusith",
     "kind": "bot",
-    "platform": "xAI",
-    "capabilities": "proposal, task, report",
-    "relay_agent": "sendor",
+    "platform": "Grok Bot",
+    "capabilities": "task, verify, report",
+    "relay_agent": "grosendor",
     "rotate_token": true
   }'
 ```
 
 **`rotate_token: true` 是必须的**，否则返回 200 但没有令牌（只更新资料）。
+
+换发同样按平台走 —— 谁的 bot 谁换。例子里的 `rusith` 在 Grok Bot 平台，所以由 `grosendor` 换发，它的 `relay_agent` 也只能是 `grosendor`。OpenBot 的 bot 由 `sendor` 换。
 
 ### 2.4 把令牌交给那个 bot
 
@@ -174,11 +184,16 @@ curl -s "$BASE/api/studio/agents?kind=bot" -H "Authorization: Bearer $TOKEN"
 
 ```bash
 # 1. 取单（有单会被原子领取；两个传信员同时挂着只有一个抢到）
-curl -s "$BASE/api/studio/inbox?relay=<你的 id>&wait=0&take=5&cover=1" \
+#    默认 cover=0：只取自己名下的单。要代领没指定传信员的单再加 &cover=1（见下面第 3.2 节的规则）
+curl -s "$BASE/api/studio/inbox?relay=<你的 id>&wait=0&take=5" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-- `cover=1`：除了自己名下的单，也代领「没指定传信员」的单（领取时自动认领）
+- `cover=1`：除了自己名下的单，也代领 `relay_agent` 为空的单（领取时自动认领，并把你自己写进那行的 `relay_agent`）。
+- **`cover` 没有平台过滤**：两个平台的传信员都开着 `cover=1` 时，一条没指定传信员的单谁先轮询到就归谁。服务端是原子领取（`status=eq.pending` 的条件更新），不会重复叫醒同一单，但这条单可能落到**另一个平台**的传信员手上，而它叫不醒那个 bot。
+- 所以第一条规矩是：**每个 bot 登记时就把 `relay_agent` 填好**，别留空。留空等于把这条单交给运气。
+- 你只管自己平台的 bot，就**别开 `cover=1`**（默认就是 0），只取 `relay=<你自己的 id>` 的单。
+- 万一误领了别的平台的 bot（`target_agent` 不是你能叫醒的），**不要回执 `delivered`** —— 没叫醒就是没叫醒。用 `PATCH /api/studio/dispatch?id=<单 id> {"status":"pending"}` 放回队列，然后告诉主人。
 - 返回的每条单只有 `headline`、`task_id`、`prompt_url` —— **没有任务正文**，你别去取正文
 - 空返回是 `{"dispatches":[],"timeout":true}`，不是错误
 
@@ -230,7 +245,8 @@ c) GET /api/studio/agents?id=<bot id> → hasToken 为 true
 5. 心跳：PATCH /api/studio/agents?id=<bot id> {"heartbeat":true}
 
 【不要】
-- 不要自己轮询等活，传信员会叫你
+- 不要自己轮询等活，传信员会叫你（传信员只负责叫醒，不读、也不该看到任务正文）
+- 派活时 `assignee_agent` 填真正干活的那个 bot 的 id，不要把单派给传信员
 - 不要直接写数据库表
 - 不要把令牌、密码、任务正文写进 summary / plan / detail
 ```
@@ -267,6 +283,7 @@ c) GET /api/studio/agents?id=<bot id> → hasToken 为 true
 - [ ] `GET /api/studio/manifest` 用自己的令牌 → `200`
 - [ ] `GET /api/studio/agents?kind=relay|bot` 里能看到它，`hasToken` 为 `true`
 - [ ] 它发过一次心跳后 `online` 为 `true`
+- [ ] 那个 bot 的 `relay_agent` 是**它所在平台**的传信员（跨平台的填那边的，不要填一个叫不醒它的人）
 - [ ] 派一条真实任务（带 `assignee_agent`）→ `GET /api/studio/dispatch?status=open` 能看到那一行
 - [ ] 传信员 `inbox` 能取到它 → 叫醒 → 回执 `delivered`
 - [ ] bot 取正文 (`GET /api/studio/prompt?task=<id>`) → 干完 `PATCH /api/studio/tasks?id=<id> {"status":"completed"}` → 队列那条变 `acked`
