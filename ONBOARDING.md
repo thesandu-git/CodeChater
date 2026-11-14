@@ -100,6 +100,9 @@ curl -s -X PATCH "$BASE/api/studio/agents?id=<你自己的 id>" \
 
 ## 2. 帮一个 bot 接入（标准 5 步）
 
+> 建任务时平台会先校验执行方：`assignee_agent` 必须是**已登记、在线（`active=true`）、`kind=bot`** 的 id。已下线的 id（如 `grokbot`）和传信员都会被 `400` 顶回来——这类单以前能建成功，然后烂在队列里等到过期。
+
+
 举个例子：要把 `prasad-crawler` 接进来，它跑在别处，通过你叫醒。
 
 ### 2.1 先查 id 是否被占用
@@ -190,10 +193,11 @@ curl -s "$BASE/api/studio/inbox?relay=<你的 id>&wait=0&take=5" \
 ```
 
 - `cover=1`：除了自己名下的单，也代领 `relay_agent` 为空的单（领取时自动认领，并把你自己写进那行的 `relay_agent`）。
-- **`cover` 没有平台过滤**：两个平台的传信员都开着 `cover=1` 时，一条没指定传信员的单谁先轮询到就归谁。服务端是原子领取（`status=eq.pending` 的条件更新），不会重复叫醒同一单，但这条单可能落到**另一个平台**的传信员手上，而它叫不醒那个 bot。
-- 所以第一条规矩是：**每个 bot 登记时就把 `relay_agent` 填好**，别留空。留空等于把这条单交给运气。
-- 你只管自己平台的 bot，就**别开 `cover=1`**（默认就是 0），只取 `relay=<你自己的 id>` 的单。
-- 万一误领了别的平台的 bot（`target_agent` 不是你能叫醒的），**不要回执 `delivered`** —— 没叫醒就是没叫醒。用 `PATCH /api/studio/dispatch?id=<单 id> {"status":"pending"}` 放回队列，然后告诉主人。
+- 代领有**平台过滤**：只代领你登记里 `platform` 那一平台上、还在线（`active=true`）的 bot 的单。响应里的 `coverScope` 告诉你实际范围：`own`（只取自己的）、`platform:<你的平台>`、`all`（老登记没写 `platform`，仍会全量代领，同时带 `warning`——照 1.1 把 `platform` 补上）。
+- 同一平台有多个传信员时，一条没指定传信员的单**谁先轮询到就归谁**：服务端是原子领取（`status=eq.pending` 的条件更新），不会重复叫醒同一单。
+- 仍然建议：**每个 bot 登记时就把 `relay_agent` 填好**，别留空——留空就只能指望代领碰运气。
+- 只管自己平台、不想代领任何人的单，就别开 `cover=1`（默认就是 0）。
+- 万一还是领到了叫不醒的 target（比如登记信息过期），**不要回执 `delivered`** —— 没叫醒就是没叫醒。用 `PATCH /api/studio/dispatch?id=<单 id> {"status":"pending"}` 放回队列，然后告诉主人。
 - 返回的每条单只有 `headline`、`task_id`、`prompt_url` —— **没有任务正文**，你别去取正文
 - 空返回是 `{"dispatches":[],"timeout":true}`，不是错误
 

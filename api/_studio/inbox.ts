@@ -17,18 +17,62 @@ import { json, num, requireIdentity, text } from './_shared';
 
 type Row = Record<string, any>;
 
+async function agentRow(id: string): Promise<Row | null> {
+  try {
+    const response = await db(
+      `wb_agents?id=eq.${encodeURIComponent(id)}&select=id,kind,active,platform&limit=1`,
+    );
+    const rows = await readJson<Row[]>(response);
+    return Array.isArray(rows) && rows[0] ? rows[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 这个传信员能代领哪些 bot 的单：同平台 + 还在线。没有平台信息返回 null（退回全量代领）。 */
+async function coverScopeIds(platform: string | null): Promise<string[] | null> {
+  if (!platform) return null;
+  try {
+    const response = await db(
+      `wb_agents?select=id&platform=eq.${encodeURIComponent(platform)}&active=eq.true&limit=500`,
+    );
+    const rows = await readJson<Row[]>(response);
+    return Array.isArray(rows) ? rows.map((row) => String(row.id)) : [];
+  } catch {
+    return [];
+  }
+}
+
 const DEFAULT_WAIT_S = 20;
 const MAX_WAIT_S = 45;
 const POLL_MS = 1500;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function candidates(relay: string | null, target: string | null, take: number, cover: boolean): Promise<Row[]> {
+async function candidates(
+  relay: string | null,
+  target: string | null,
+  take: number,
+  cover: boolean,
+  coverPlatformIds: string[] | null,
+): Promise<Row[]> {
   const nowIso = new Date().toISOString();
   const where = [`status=eq.pending`, `expires_at=gt.${nowIso}`];
   if (relay && cover) {
-    // 代领：自己名下的 + 还没指定传信员的（谁抢到算谁的，领取时认领）
-    where.push(`or=(relay_agent.eq.${encodeURIComponent(relay)},relay_agent.is.null)`);
+    // 代领：自己名下的 + 还没指定传信员的。
+    // 传信员按平台划分，所以「没指定传信员」也只在**本平台的 bot** 里挑；
+    // 没有平台信息（老登记）才退回全量代领，响应里会带 warning。
+    if (coverPlatformIds && coverPlatformIds.length) {
+      where.push(
+        `or=(relay_agent.eq.${encodeURIComponent(relay)},` +
+        `and(relay_agent.is.null,target_agent.in.(${coverPlatformIds.join(',')})))`,
+      );
+    } else if (coverPlatformIds) {
+      // 本平台一个 bot 都没登记：只取自己名下的，别去代领别人的
+      where.push(`relay_agent=eq.${encodeURIComponent(relay)}`);
+    } else {
+      where.push(`or=(relay_agent.eq.${encodeURIComponent(relay)},relay_agent.is.null)`);
+    }
   } else if (relay) {
     where.push(`relay_agent=eq.${encodeURIComponent(relay)}`);
   } else {
@@ -90,6 +134,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const relay = relayParam ?? (who.role === 'agent' ? who.id : null);
     const cover = req.query.cover === '1' || req.query.cover === 'true';
+    const relayRow = relay ? await agentRow(relay) : null;
+    const relayPlatform = relayRow?.platform ?? null;
+    const coverIds = cover ? await coverScopeIds(relayPlatform) : null;
     const take = Math.round(num(req.query.take, 1, 10) ?? 1);
     const waitS = Math.min(Math.max(num(req.query.wait, 0, MAX_WAIT_S) ?? DEFAULT_WAIT_S, 0), MAX_WAIT_S);
 
@@ -100,14 +147,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const claimed: Row[] = [];
 
     if (waitS === 0) {
-      for (const row of await candidates(relay, target, take, cover)) {
+      for (const row of await candidates(relay, target, take, cover, coverIds)) {
         const got = await claim(row, relay, who.id);
         if (got) claimed.push(got);
         if (claimed.length >= take) break;
       }
     } else {
       while (true) {
-        for (const row of await candidates(relay, target, take - claimed.length, cover)) {
+        for (const row of await candidates(relay, target, take - claimed.length, cover, coverIds)) {
           const got = await claim(row, relay, who.id);
           if (got) claimed.push(got);
           if (claimed.length >= take) break;
@@ -140,6 +187,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       waitedMs: Date.now() - startedAt,
       relay,
       cover,
+      // cover 的作用范围：own=只取自己的；platform:<名字>=代领本平台 bot 的单；all=老登记没写 platform，退回全量
+      coverScope: cover ? (relayPlatform ? `platform:${relayPlatform}` : 'all') : 'own',
+      ...(cover && !relayPlatform
+        ? { warning: '你的登记里没有 platform，cover 会代领所有平台的单。补上：PATCH /api/studio/agents?id=<你自己> {"platform":"<你的平台>"}' }
+        : {}),
       nextPollMs: claimed.length ? 0 : POLL_MS,
       note: claimed.length
         ? '已领取（claimed）。叫醒 bot 后 PATCH /api/studio/dispatch?id=<id> {status:"delivered"}。'

@@ -65,6 +65,27 @@ export async function queueDispatch(input: QueueInput): Promise<QueueResult> {
   const target = String(input.targetAgent ?? '').trim();
   if (!/^[a-z0-9_-]{2,32}$/.test(target)) return { error: 'target_agent 无效。', status: 400 };
 
+  const kind = input.kind && DISPATCH_KINDS.includes(input.kind as any) ? input.kind : 'task';
+
+  // 派单前先看目标是不是真能干活的人：没登记 / 已下线 / 只是传信员，都不该进队列。
+  // 这三种单以前会静静躺在队列里等到过期（grokbot 那次就是这么烂掉的）。
+  const targetRow = await one(`wb_agents?id=eq.${encodeURIComponent(target)}&select=id,active,kind&limit=1`);
+  if (!targetRow) {
+    return { error: `目标 ${target} 没登记：先登记它，或换成已登记的 id。`, status: 400 };
+  }
+  if (targetRow.active === false) {
+    return {
+      error: `目标 ${target} 已下线（active=false），不派单。换一个在线 bot，或先重新启用它。`,
+      status: 400,
+    };
+  }
+  if (kind === 'task' && targetRow.kind === 'relay') {
+    return {
+      error: `目标 ${target} 是传信员，不接活。把单派给干活的 bot——传信员只负责叫醒它。`,
+      status: 400,
+    };
+  }
+
   let projectId = input.projectId ?? null;
   let headline = (input.headline ?? '').trim();
   if (input.taskId) {
@@ -115,7 +136,7 @@ export async function queueDispatch(input: QueueInput): Promise<QueueResult> {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
-      kind: input.kind && DISPATCH_KINDS.includes(input.kind as any) ? input.kind : 'task',
+      kind,
       task_id: input.taskId ?? null,
       project_id: projectId,
       target_agent: target,

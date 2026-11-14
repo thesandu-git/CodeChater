@@ -23,6 +23,34 @@ async function unregistered(agentId: string): Promise<boolean> {
   }
 }
 
+/**
+ * 执行方必须是「在线、干活的 bot」。已下线的 id（比如废弃的 grokbot）和传信员都不该接活：
+ * 以前这种单能建成功，然后静静烂在队列里等到过期——派单前就把话说明白。
+ */
+async function assigneeProblem(agentId: string): Promise<{ error: string; hint?: string } | null> {
+  try {
+    const response = await db(`wb_agents?id=eq.${encodeURIComponent(agentId)}&select=id,kind,active&limit=1`);
+    const rows = await readJson<Row[]>(response);
+    if (!response.ok || !Array.isArray(rows) || !rows[0]) return null; // 没登记交给 unregistered()
+    const row = rows[0];
+    if (row.active === false) {
+      return {
+        error: `执行方 ${agentId} 已下线（active=false），不能把任务派给它。`,
+        hint: '换成在线的 bot；要恢复它就先 PATCH /api/studio/agents?id=<id> {"active":true} 再给它换令牌。',
+      };
+    }
+    if (row.kind === 'relay') {
+      return {
+        error: `执行方 ${agentId} 是传信员，不接活。`,
+        hint: 'assignee_agent 填干活的 bot；传信员只负责叫醒它，不读任务正文。',
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function notRegistered(agentId: string, role: string) {
   return {
     error: `${role} ${agentId} 还没登记：先 POST /api/studio/agents 登记它，或换成已登记的 id。`,
@@ -83,6 +111,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const assignee = text(body.assignee_agent, 32) ?? null;
       if (assignee && await unregistered(assignee)) return json(res, 400, notRegistered(assignee, '执行方'));
+        if (assignee) {
+          const problem = await assigneeProblem(assignee);
+          if (problem) return json(res, 400, problem);
+        }
       const requester = text(body.requester_agent, 32) ?? (who.role === 'agent' ? who.id : null);
       if (requester && requester !== assignee && await unregistered(requester)) {
         return json(res, 400, notRegistered(requester, '派任务的人'));
@@ -190,6 +222,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const assignee = text(body.assignee_agent, 32);
         if (assignee === undefined) return json(res, 400, { error: '执行方 id 太长（≤32 位）。' });
         if (assignee && await unregistered(assignee)) return json(res, 400, notRegistered(assignee, '执行方'));
+        if (assignee) {
+          const problem = await assigneeProblem(assignee);
+          if (problem) return json(res, 400, problem);
+        }
         patch.assignee_agent = assignee;
       }
       if (body.owner_required !== undefined) patch.owner_required = Boolean(body.owner_required);
