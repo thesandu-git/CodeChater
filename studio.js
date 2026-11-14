@@ -9,6 +9,16 @@ const compact = (n) => {
   return fmt(v);
 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const kb = (n) => {
+  const b = Number(n) || 0;
+  return b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+};
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+  reader.onerror = () => reject(new Error('读取文件失败'));
+  reader.readAsDataURL(file);
+});
 
 const STAGES = [['idea', '概念'], ['proposal', '预案'], ['validated', '验证'], ['build', '开发'], ['testing', '调试'], ['launch', '上线'], ['revenue', '变现']];
 const STAGE_LABEL = Object.fromEntries(STAGES);
@@ -395,6 +405,7 @@ function openTask(id) {
   const t = (state.view.tasks || []).find((x) => x.id === id);
   if (!t) return;
   const subs = (state.view.tasks || []).filter((x) => x.parent_id === id);
+  const attFiles = (state.view.attachments || []).filter((x) => x.task_id === id);
   openSheet(t.title, `
     <div class="meta-grid">
       <div class="meta-box"><div class="k">项目</div><div class="v">${esc(t.projectName || '—')}</div></div>
@@ -428,6 +439,19 @@ function openTask(id) {
         <button class="ghost" type="submit">+ 子任务</button>
       </form>
     </div>
+    <div class="block"><h4>附件（${attFiles.length}）</h4>
+      <div id="attList">
+        ${attFiles.map((f) => `<div class="task-row"><span>${esc(f.filename)}</span>
+          <span class="sub">${kb(f.size_bytes)} · ${esc(f.uploaded_by)}</span><span class="sp"></span>
+          <button class="ghost small" data-dl="${esc(f.id)}">下载</button>
+          <button class="ghost small" data-del="${esc(f.id)}">删</button></div>`).join('') || '<p class="hint">还没有附件。上传后 bot 在 /api/studio/prompt 里能看到清单和下载地址。</p>'}
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <input type="file" id="attFile" />
+        <button class="ghost" id="attUpload" type="button">上传附件</button>
+      </div>
+      <p class="hint">≤3MB 一次传；更大的自动转直传。下载链接 1 小时有效，每次点都重新签。</p>
+    </div>
     <div class="block"><h4>交接给 AI</h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="ghost" id="promptBtn">生成执行摘要 prompt</button>
@@ -458,6 +482,44 @@ function openTask(id) {
       await api('/api/studio/tasks', { method: 'POST', body: JSON.stringify(body) });
       await load();
       openTask(t.id);
+    } catch (error) { $('modalError').textContent = error.message; }
+  });
+
+  $('attUpload').addEventListener('click', async () => {
+    const file = $('attFile').files && $('attFile').files[0];
+    if (!file) {
+      $('modalError').textContent = '先选一个文件。';
+      return;
+    }
+    const meta = { task_id: t.id, filename: file.name, mime: file.type || 'application/octet-stream' };
+    try {
+      if (file.size <= 3 * 1024 * 1024) {
+        const content_base64 = await fileToBase64(file);
+        await api('/api/studio/attachments', { method: 'POST', body: JSON.stringify({ ...meta, content_base64 }) });
+      } else {
+        const slot = await api('/api/studio/attachments?upload_url=1', { method: 'POST', body: JSON.stringify(meta) });
+        const put = await fetch(slot.upload_url, { method: slot.method || 'PUT', headers: slot.headers || {}, body: file });
+        if (!put.ok) throw new Error(`直传失败（HTTP ${put.status}）`);
+        await api('/api/studio/attachments', { method: 'POST', body: JSON.stringify({ ...meta, path: slot.path }) });
+      }
+      await load();
+      openTask(t.id);
+    } catch (error) { $('modalError').textContent = error.message; }
+  });
+
+  $('attList').addEventListener('click', async (event) => {
+    const dl = event.target.closest('[data-dl]');
+    const del = event.target.closest('[data-del]');
+    try {
+      if (dl) {
+        const info = await api(`/api/studio/attachments?id=${encodeURIComponent(dl.dataset.dl)}&json=1`);
+        window.open(info.url, '_blank', 'noopener');
+      }
+      if (del) {
+        await api(`/api/studio/attachments?id=${encodeURIComponent(del.dataset.del)}`, { method: 'DELETE' });
+        await load();
+        openTask(t.id);
+      }
     } catch (error) { $('modalError').textContent = error.message; }
   });
 

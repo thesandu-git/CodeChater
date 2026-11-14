@@ -13,5 +13,6 @@ export { default as inbox } from './inbox';
 export { default as manifest } from './manifest';
 export { default as report } from './report';
 export { default as announcements } from './announcements';
+export { default as attachments } from './attachments';
 export { default as tokens } from './tokens';
 export { default as logs } from './logs';

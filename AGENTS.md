@@ -79,6 +79,27 @@ curl -s -X POST https://codechat-five.vercel.app/api/studio/tasks \
 | `due_at` / `start_at` | | `YYYY-MM-DD` |
 | `dispatch` | | `false` 表示只建任务不通知（默认会派） |
 
+## 附件（截图、表格、需求文档）
+
+任务建好后就能挂文件，bot 不用再问主人要。
+
+```bash
+# ≤3MB：一次调用（base64）
+curl -s -X POST "$BASE/api/studio/attachments" -H "$AUTH" -H 'Content-Type: application/json' \
+  --data-binary @att.json
+# att.json: {"task_id":"<任务 id>","filename":"需求.pdf","mime":"application/pdf","content_base64":"<base64>"}
+
+# 更大（≤50MB）：两段式直传
+# 1) POST "$BASE/api/studio/attachments?upload_url=1" {"task_id","filename","mime"} → {upload_url, path, headers}
+# 2) PUT 文件到 upload_url
+# 3) POST "$BASE/api/studio/attachments" {"task_id","path"} → 201
+```
+
+- 执行 bot 在 `GET /api/studio/prompt?task=` 的「## 附件」段里直接拿到文件名和下载地址（`?download=1` 会 302 到 1 小时有效的签名链接，`curl -L` 直接落盘）
+- 列表：`GET /api/studio/attachments?task=<id>`；删除只有上传者本人或 owner
+- 中文文件名没问题（存储 key 用 uuid，展示名照存）；`mime` 带 `; charset=` 会被归一
+- 细节见 `docs/API.md` 5.1
+
 ## 谁被叫醒、怎么干
 
 1. 传信员（`kind: "relay"`，比如 `sendor`）待命取单：`GET /api/studio/inbox?relay=<传信员>&wait=25&cover=1`
@@ -117,5 +138,6 @@ curl -s -X POST https://codechat-five.vercel.app/api/studio/tokens \
 - **不要直接写数据库**。一律走接口。
 - **一个任务一个执行 bot**，要两个人干活就拆成两条任务。
 - **别把正文塞进队列**：`headline` 只有项目名 + 标题；正文放 `plan`。
+- **文件走附件接口**：截图/文档用 `POST /api/studio/attachments`，别把 base64 或大段文件内容塞进 `plan` / `summary`。
 - 令牌、密码不进任何文本字段，也不进仓库。
 - 状态只有五种：`on_track`（正常）/ `at_risk`（有风险）/ `blocked`（受阻）/ `completed`（完成）/ `on_hold`（暂停）。卡住就 `blocked` + `blocked_reason`，别硬撑。

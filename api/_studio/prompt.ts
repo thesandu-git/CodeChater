@@ -56,6 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? await one(`wb_products?id=eq.${project.product_id}&select=*&limit=1`)
       : null;
     const subtasks = await list(`wb_tasks?parent_id=eq.${task.id}&select=*&order=order_index.asc&limit=50`);
+    const attachments = await list(`wb_attachments?task_id=eq.${task.id}&select=id,filename,mime,size_bytes,uploaded_by,created_at&order=created_at.asc&limit=100`);
     const milestones = await list(`wb_milestones?project_id=eq.${task.project_id}&select=*&order=due_at.asc&limit=20`);
     const siblings = await list(`wb_tasks?project_id=eq.${task.project_id}&select=*&order=order_index.asc&limit=100`);
 
@@ -84,6 +85,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? subtasks.map((s) => `- [${s.status === 'completed' ? 'x' : ' '}] ${s.title}${s.assignee_agent ? ` · ${s.assignee_agent}` : ''}`).join('\n')
         : '（无）',
       '',
+      '## 附件',
+      attachments.length
+        ? attachments.map((a) => `- ${a.filename}（${Math.max(1, Math.round((Number(a.size_bytes) || 0) / 1024))} KB，${a.mime}）: GET ${base}/api/studio/attachments?id=${a.id}&download=1 ｜ 带自己的令牌并用 curl -L，直接落盘`).join('\n')
+        : '（这条任务没有附件）',
+      '',
       '## 项目上下文',
       `- 项目：${project.name}（阶段 ${project.stage} / 状态 ${project.status} / 进度 ${project.progress}%）`,
       `- 项目目的：${project.purpose || '未填写'}`,
@@ -108,6 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       projectId: project.id,
       productId: project.product_id ?? null,
       task,
+      attachments,
       prompt,
       contract: {
         report: `${base}/api/studio/report`,

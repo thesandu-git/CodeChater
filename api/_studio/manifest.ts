@@ -35,6 +35,12 @@ const MANIFEST = {
     },
     { method: 'POST', path: '/api/studio/dispatch', layer: 'relay', note: '派单入队（只放一行标题+指针）；?id= PATCH 送达/回执，?task_id= 批量收尾' },
     { method: 'GET', path: '/api/studio/inbox', layer: 'relay', note: '传信员待命长轮询；?relay=&wait=25&take=1，有单立刻返回并 claim' },
+    {
+      method: 'GET/POST/DELETE',
+      path: '/api/studio/attachments',
+      layer: 'kanban',
+      note: '任务附件：GET ?task= 列表、?id=&download=1 下载（302 到签名 URL）、?id=&json=1 拿链接；小文件 POST {task_id, filename, content_base64}；大文件 POST ?upload_url=1 拿签名 URL → PUT 文件 → POST {task_id, path} 确认；DELETE ?id= 仅上传者或 owner',
+    },
     { method: 'POST', path: '/api/studio/report', layer: 'execution', note: '进度/阻塞汇报' },
     {
       method: 'GET/POST/PATCH',

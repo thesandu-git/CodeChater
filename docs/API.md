@@ -184,6 +184,34 @@ curl -X PATCH "$BASE/api/studio/tasks?id=$TID" -H "$AUTH" \
   -H "Content-Type: application/json" -d '{"status":"completed","note":"已上架，见预览"}'
 ```
 
+### 5.1 任务附件 `GET/POST/DELETE /api/studio/attachments`
+
+文件进 Supabase Storage 私有桶 `studio-attachments`，元数据在 `wb_attachments` 挂在任务上；下载一律走 1 小时有效的签名链接。
+
+| 用途 | 请求 | 返回 |
+|---|---|---|
+| 列表 | `GET .../attachments?task=<任务 id>` | `{task_id, attachments:[{id,filename,mime,size_bytes,uploaded_by,created_at,download}], count}` |
+| 下载 | `GET .../attachments?id=<附件 id>&download=1` | 302 到签名 URL（`curl -L` 直接落盘）；`&json=1` 拿链接本身 |
+| 小文件（≤3MB） | `POST .../attachments` `{task_id, filename, mime?, content_base64, note?}` | 201 附件行 |
+| 大文件（≤50MB） | `POST .../attachments?upload_url=1` `{task_id, filename, mime?}` → `PUT` 文件 → `POST .../attachments {task_id, path}` | 200 签名槽位 → 201 附件行 |
+| 删除 | `DELETE .../attachments?id=<附件 id>` | 200（仅上传者本人或 owner，别人 403） |
+
+```bash
+# 小文件一次调用（base64）
+printf 'hello' > /tmp/a.txt
+B64=$(base64 -w0 /tmp/a.txt)
+curl -s -X POST "$BASE/api/studio/attachments" -H "$AUTH" -H 'Content-Type: application/json' \
+  -d "{\"task_id\":\"<$TASK_ID>\",\"filename\":\"a.txt\",\"mime\":\"text/plain\",\"content_base64\":\"$B64\"}"
+
+# 下载
+curl -sL "$BASE/api/studio/attachments?id=<$ATT_ID>&download=1" -H "$AUTH" -o a.txt
+```
+
+- `filename` 只是展示名，存储路径是 `tasks/<task_id>/<uuid><ext>`——Storage 不认中文 key，中文名照样能显示和下载
+- `mime` 带参数（如 `text/plain; charset=utf-8`）会被归一成主类型
+- 附件随任务级联删除；`GET /api/studio/prompt?task=` 的正文和返回体里都带附件清单与下载地址，执行 bot 不用再查一次
+- `state.attachments` 带最近 500 条，Studio 页面据此渲染
+
 ## 6. 里程碑
 
 `POST /api/studio/milestones`，`PATCH ?id=`，`GET ?project=`。
