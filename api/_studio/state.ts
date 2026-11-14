@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const scheduleFrom = dayStartIso(addDays(day, -31));
     const scheduleTo = dayStartIso(addDays(day, 61));
 
-    const [agents, products, projects, tasks, milestones, docs, schedule, reports, tokens, logs, medians, taskEvents, desk, dispatches] = await Promise.all([
+    const [agents, products, projects, tasks, milestones, docs, schedule, reports, tokens, logs, medians, taskEvents, desk, dispatches, announcements] = await Promise.all([
       rows('wb_agents?select=*&order=id'),
       rows('wb_products?select=*&order=created_at.asc'),
       rows('wb_studio_projects?select=*&limit=400'),
@@ -63,6 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rows(`wb_task_events?select=*&created_at=gte.${encodeURIComponent(dayStartIso(tokenFrom))}&order=created_at.desc&limit=1000`),
       safeRows('wb_relay_desk?select=*&order=kind.asc,id.asc&limit=300'),
       safeRows('wb_dispatches?select=*&status=in.(pending,claimed,delivered)&order=created_at.desc&limit=300'),
+      safeRows('wb_announcements?select=*&archived=eq.false&order=published_at.desc,id.desc&limit=20'),
     ]);
 
     const agentName = new Map(agents.map((a) => [a.id, a.display_name]));
@@ -402,6 +403,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           projectName: d.project_id ? projectName.get(d.project_id) ?? null : null,
         })),
       },
+      announcements,
       range: { from, to },
     });
   } catch (error) {

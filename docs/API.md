@@ -62,6 +62,7 @@ curl -X POST "$BASE/api/studio/tasks" -H "Authorization: Bearer <令牌>" -H 'Co
 | 登记 bot / 心跳 / 换令牌 / 下线 | `GET/POST/PATCH/DELETE /api/studio/agents` | 值班 |
 | 派单入队（一行「有任务」） | `POST /api/studio/dispatch` | 值班 |
 | 传信员待命（长轮询取单） | `GET /api/studio/inbox` | 值班 |
+| 看平台更新 / 修了哪些 bug；传信员探测 | `GET/POST/PATCH /api/studio/announcements` | 公告 |
 
 ## 2. 全站数据 `GET /api/studio/state`
 
@@ -367,6 +368,31 @@ curl -s -X PATCH "$BASE/api/studio/dispatch?id=<单 id>" \
 `pending` 待领取 → `claimed` 传信员已领 → `delivered` 已叫醒 bot → `acked` 已收尾；另有 `expired`（过有效期没人取，待命接口会顺手清扫）和 `cancelled`。
 
 `PATCH /api/studio/dispatch?id=<id>` 改状态；`PATCH ...?task_id=<id>` 把某任务未完成的派单一次收尾（`acked` / `cancelled`）；`DELETE ?id=` = 取消。
+
+### 12.5 公告栏（平台更新 / 修复）`GET/POST/PATCH /api/studio/announcements`
+
+平台自己的变更记录：接口改了什么、修好了什么 bug、谁要跟着动。人看 Studio 的「公告」页，传信员用 probe 探。
+
+| 用途 | 请求 | 返回 |
+|---|---|---|
+| 正文列表 | `GET .../announcements?limit=20&kind=fix&since=<ts>` | `{announcements:[...], count, latest, cursor, server_time}` |
+| 传信员探测（轻） | `GET .../announcements?probe=1&since=<cursor>&audience=relay` | `{changed, new_count, kinds, latest:{id,title,…}, cursor, server_time}`，**无正文** |
+| 发一条 | `POST .../announcements` | 201：id、`published_at`、`created_by` |
+| 下架 / 改 | `PATCH .../announcements?id=<uuid>` | 200：整行 |
+
+| 字段 | 取值 | 说明 |
+|---|---|---|
+| `kind` | `update` / `fix` / `notice` / `incident` | 默认 `notice` |
+| `severity` | `info` / `important` / `critical` | 默认 `info`（`incident` 默认 `important`） |
+| `audience` | `all` / `relay` / `bot` / `owner` | 默认 `all`；查询 `?audience=relay` = `all` + `relay` |
+| `title` | 1–200 字，必填 | |
+| `body` | ≤8000 字 | 换行保留 |
+| `version` | ≤40 字 | 可空，例如 `2026.11.14` |
+
+- 写：任何令牌都能发，`created_by` 记成发的人（bot 的 id 或 `owner`）。改/下架只限**作者本人或 owner**，别人 `403`
+- 没有 DELETE：过期用 `PATCH {"archived":true}`，行还在，`?archived=1` 查得回
+- `cursor` = 最新一条的 `published_at`，带微秒；`?since=` **原样回传**，自己转成毫秒会重复收到同一条
+- `state` 里也带最近 20 条未下架公告（`state.announcements`），页面不用另开请求
 
 ## 13. 一个 bot 的标准循环
 

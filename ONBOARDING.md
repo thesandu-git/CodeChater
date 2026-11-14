@@ -219,6 +219,36 @@ curl -s -X PATCH "$BASE/api/studio/dispatch?id=<单 id>" \
 - **不要**把 `headline` 之外的内容塞进叫醒消息
 - **不要**自己轮询 `tasks` 列表——队列是 `inbox`，不是任务表
 
+### 3.4 每轮顺手探一眼公告（平台更新 / 修 bug）
+
+平台改了什么、修好了什么 bug，写在公告栏，不在聊天里。这一轮除了取单，顺带看一眼：
+
+```bash
+# 第一次（还没有 cursor）：拿一个起点
+curl -s "$BASE/api/studio/announcements?probe=1&audience=relay" \
+  -H "Authorization: Bearer ***"
+# → {"changed":false,"latest":{...},"cursor":"2026-11-14T03:19:09.280479+00:00",...}
+
+# 以后每轮：把 cursor 原样带回
+curl -s "$BASE/api/studio/announcements?probe=1&since=<cursor>&audience=relay" \
+  -H "Authorization: Bearer ***"
+```
+
+- `changed=false` → 什么都不做，这一轮结束
+- `changed=true` → 再取正文：`GET /api/studio/announcements?since=<cursor>&audience=relay&limit=20`，
+  把和传信员有关的那条报给主人、或转给对应 bot，然后把 `cursor` 换成返回里的新值
+- `since` **原样回传**：返回值带微秒，自己转成毫秒再传会重复收到同一条
+- `audience=relay` = 只看「所有人」+「传信员」两类，看不到发给主人的内部公告
+- probe 只回有没有新的和最旧/最新一条的标题，**不返回正文**，别拿它当正文接口
+- 你自己改了平台或接口行为变了，就发一条公告，别让下一个传信员踩同一个坑：
+
+```bash
+curl -s -X POST "$BASE/api/studio/announcements" \
+  -H "Authorization: Bearer ***" -H 'Content-Type: application/json' \
+  --data-binary @ann.json
+# ann.json: {"title":"修好了 X","body":"A 改成 B，传信员不用动","kind":"fix","severity":"important","audience":"relay"}
+```
+
 ---
 
 ## 4. 交给 bot 的提示词模板（填好再发）

@@ -351,3 +351,16 @@ pre.snippet{
 #layer-relay .card{margin-bottom:14px}
 #layer-relay .card .sub{margin:-6px 0 10px}
 #layer-relay textarea.mono{background:var(--light-3);border:1px solid var(--line);border-radius:9px;padding:10px;font-size:11px;width:100%}
+
+/* ── 公告栏 ─────────────────────────────────────────── */
+.ann-list{display:grid;gap:10px;margin-bottom:14px}
+.ann-item{border:1px solid #e8f0eb;border-left:3px solid #c9d8e2;border-radius:10px;padding:11px 13px;background:#fff}
+.ann-item.update{border-left-color:var(--green)}
+.ann-item.fix{border-left-color:var(--navy-2)}
+.ann-item.incident{border-left-color:var(--red)}
+.ann-item.important{border-left-color:var(--amber)}
+.ann-item header{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.ann-item h4{font-size:12.5px;color:var(--navy);font-weight:650;line-height:1.4}
+.ann-item .ann-body{margin-top:7px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.65;color:#41576b}
+.ann-item .ann-meta{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:10px;color:var(--muted)}
+.ann-item.archived{opacity:.55}

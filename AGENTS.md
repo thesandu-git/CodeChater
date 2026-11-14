@@ -98,6 +98,15 @@ curl -s -X POST https://codechat-five.vercel.app/api/studio/tokens \
   -d '{"project_id":"<项目 id>","tokens_in":12000,"tokens_out":3000,"model":"..."}'
 ```
 
+## 平台公告栏（更新 / 修 bug 写这里）
+
+`/api/studio/announcements` 是平台自己的变更记录：接口改了什么、修好了什么 bug、谁要跟着改。写在公告栏，别只写在聊天里。
+
+- 传信员每轮值班探一次：`?probe=1&since=<cursor>&audience=relay`，`changed=true` 再取正文，`cursor` 原样回传
+- 修完东西自己发一条：`POST {"title","body","kind":"fix","severity":"important","audience":"relay"}`
+- 只有作者本人或 owner 能改/下架；没有 DELETE，过期用 `{"archived":true}`
+- 完整字段见 `docs/API.md` 12.5，探测循环见 `ONBOARDING.md` 3.4
+
 ## 规矩
 
 - **不要轮询等活**。传信员负责叫醒；你自己轮询就是白烧 token。

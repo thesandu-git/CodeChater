@@ -885,6 +885,66 @@ function renderRelay() {
   $('relaySnippet').replaceChildren(note, pre);
 }
 
+// ── 公告栏 ─────────────────────────────────────────────────
+const ANN_KIND = { update: ['更新', 'good'], fix: ['修复', 'good'], notice: ['通知', ''], incident: ['故障', 'bad'] };
+const ANN_SEVERITY = { info: '一般', important: '重要', critical: '严重' };
+const ANN_AUDIENCE = { all: '所有人', relay: '传信员', bot: 'bot', owner: '主人' };
+
+function relTime(iso) {
+  const t = iso ? new Date(iso).getTime() : NaN;
+  if (Number.isNaN(t)) return '—';
+  return ago(Math.round((Date.now() - t) / 1000));
+}
+
+function renderBoard() {
+  const list = state.view?.announcements || [];
+  const week = list.filter((a) => Date.now() - new Date(a.published_at).getTime() < 7 * 864e5).length;
+  $('boardMeta').textContent = `${list.length} 条在架 · 最近 7 天 ${week} 条 · 传信员每轮 probe 一次就能看到新的`;
+
+  $('announcementList').innerHTML = list.length ? list.map((a) => {
+    const [kindLabel, kindTone] = ANN_KIND[a.kind] || [a.kind, ''];
+    const alert = a.severity === 'critical' ? 'incident' : a.severity === 'important' ? 'important' : a.kind;
+    return `<div class="ann-item ${esc(alert)} ${a.archived ? 'archived' : ''}">
+      <header>
+        <h4>${esc(a.title)}</h4>
+        <span class="row-btns"><button class="ghost small" data-archive="${esc(a.id)}">下架</button></span>
+      </header>
+      <div class="ann-meta">
+        <span class="tag ${kindTone}">${esc(kindLabel)}</span>
+        <span class="chip">${esc(ANN_SEVERITY[a.severity] || a.severity)}</span>
+        <span class="chip">给 ${esc(ANN_AUDIENCE[a.audience] || a.audience)}</span>
+        ${a.version ? `<span class="chip navy mono">${esc(a.version)}</span>` : ''}
+        <span class="mono">${esc(a.created_by)}</span>
+        <span title="${esc(a.published_at)}">${relTime(a.published_at)}</span>
+      </div>
+      ${a.body ? `<div class="ann-body">${esc(a.body)}</div>` : ''}
+    </div>`;
+  }).join('') : '<div class="empty">还没有公告。点右上「+ 公告」写第一条，传信员下一轮值班就会看到。</div>';
+
+  const lines = [
+    '# 传信员每轮值班顺手探一次：只回「有没有新的」，不搬正文',
+    'curl -s "$BASE/api/studio/announcements?probe=1&since=$CURSOR&audience=relay" -H "Authorization: Bearer $TOKEN"',
+    '',
+    '# changed=true 再取正文，然后把返回的 cursor 存回自己的配置',
+    'curl -s "$BASE/api/studio/announcements?since=$CURSOR&audience=relay&limit=20" -H "Authorization: Bearer $TOKEN"',
+    '',
+    '# 第一次还没有 cursor：不带 since，返回的 cursor 就是起点',
+    'curl -s "$BASE/api/studio/announcements?probe=1&audience=relay" -H "Authorization: Bearer $TOKEN"',
+    '',
+    '# bot 修完东西自己发一条（作者本人或 owner 才能改/下架）',
+    'curl -s -X POST "$BASE/api/studio/announcements" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \\',
+    '  --data-binary @ann.json   # {"title":"修好了 X","body":"改了 A → B，传信员不用动","kind":"fix","severity":"important","audience":"relay"}',
+  ];
+  const pre = document.createElement('pre');
+  pre.className = 'snippet';
+  pre.textContent = lines.join('\n');
+  const note = document.createElement('p');
+  note.className = 'sub';
+  note.style.marginBottom = '10px';
+  note.textContent = 'BASE = 平台地址，TOKEN = 传信员自己的 wbt_ 令牌。changed 判断即可，不必每轮拉正文。';
+  $('boardSnippet').replaceChildren(note, pre);
+}
+
 // ── 渲染总入口 ─────────────────────────────────────────────
 function renderAll() {
   renderPrails();
@@ -895,6 +955,7 @@ function renderAll() {
   }
   if (state.tab === 'log') renderLog();
   if (state.tab === 'relay') renderRelay();
+  if (state.tab === 'board') renderBoard();
 }
 
 const TAB_META = {
@@ -903,12 +964,13 @@ const TAB_META = {
   calendar: ['第三层', '日历 / 时间线', '+ 日程', () => newScheduleForm()],
   log: ['第四层', 'Agent Log', '刷新', () => load()],
   relay: ['值班室', 'bot 登记 · 传信员待命', '+ 派单', () => newDispatchForm()],
+  board: ['公告栏', '平台更新 · 修复 · 通知', '+ 公告', () => newAnnouncementForm()],
 };
 
 function switchTab(tab) {
   state.tab = tab;
   document.querySelectorAll('.rail-btn[data-tab]').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === tab));
-  ['products', 'kanban', 'calendar', 'log', 'relay'].forEach((key) => $(`layer-${key}`).classList.toggle('hidden', key !== tab));
+  ['products', 'kanban', 'calendar', 'log', 'relay', 'board'].forEach((key) => $(`layer-${key}`).classList.toggle('hidden', key !== tab));
   const [eyebrow, title, action, fn] = TAB_META[tab];
   $('layerEyebrow').textContent = eyebrow;
   $('layerTitle').textContent = title;
@@ -1032,6 +1094,38 @@ function newScheduleForm() {
       await load();
     } catch (error) { $('modalError').textContent = error.message; }
   });
+}
+
+// ── 公告栏表单 ─────────────────────────────────────────────
+function newAnnouncementForm() {
+  openSheet('发公告', `<form class="stack" id="newAnnouncementForm">
+    <label>标题<input name="title" maxlength="200" required placeholder="例如：公告栏上线 / 修好了换令牌后旧令牌不失效" /></label>
+    <div class="row3">
+      <label>类型<select name="kind"><option value="update">更新</option><option value="fix">修复</option><option value="notice">通知</option><option value="incident">故障</option></select></label>
+      <label>重要度<select name="severity"><option value="info">一般</option><option value="important">重要</option><option value="critical">严重</option></select></label>
+      <label>给谁看<select name="audience"><option value="all">所有人</option><option value="relay">传信员</option><option value="bot">bot</option><option value="owner">主人</option></select></label>
+    </div>
+    <label>版本号 / 标记<input name="version" maxlength="40" placeholder="可空，例如 2026.11.14" /></label>
+    <label>正文<textarea name="body" maxlength="8000" rows="7" placeholder="改了什么、哪条接口变了、传信员要不要动脚本"></textarea></label>
+    <button class="primary" type="submit">发布</button>
+    <p class="hint">发布后传信员下一轮 probe 就能看到。写清「谁需要做什么」，比只写「已修复」有用。</p>
+  </form>`);
+  $('newAnnouncementForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      await api('/api/studio/announcements', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget).entries())) });
+      closeSheet();
+      await load();
+    } catch (error) { $('modalError').textContent = error.message; }
+  });
+}
+
+async function archiveAnnouncement(id) {
+  await api(`/api/studio/announcements?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ archived: true }),
+  });
+  await load();
 }
 
 // ── 值班室表单 ─────────────────────────────────────────────
@@ -1178,6 +1272,10 @@ $('dispatchTable').addEventListener('click', (event) => {
   const cancel = event.target.closest('[data-cancel]');
   if (mark) guard(() => markDispatch(mark.dataset.id, mark.dataset.mark))();
   if (cancel) guard(() => cancelDispatch(cancel.dataset.cancel))();
+});
+$('announcementList').addEventListener('click', (event) => {
+  const archive = event.target.closest('[data-archive]');
+  if (archive) guard(() => archiveAnnouncement(archive.dataset.archive))();
 });
 $('modalClose').addEventListener('click', closeSheet);
 $('overlay').addEventListener('click', (event) => { if (event.target === $('overlay')) closeSheet(); });

@@ -14,6 +14,7 @@ const MANIFEST = {
     calendar: '第三层 日历/时间线：日程、里程碑、需要主人亲手做的节点',
     log: '第四层 Agent Log：token 来源/bot/项目、空耗、审计、推进',
     relay: '值班室：bot 自助登记、传信员待命（长轮询）、派单队列',
+    board: '公告栏：平台更新/修复/通知；传信员用 ?probe=1&since= 检测有没有新公告',
   },
   auth: 'Authorization: Bearer <owner 的 Supabase JWT | 环境里的 bridge 令牌 | POST /api/studio/agents 发的一次性令牌>，权限相同',
   endpoints: [
@@ -35,6 +36,12 @@ const MANIFEST = {
     { method: 'POST', path: '/api/studio/dispatch', layer: 'relay', note: '派单入队（只放一行标题+指针）；?id= PATCH 送达/回执，?task_id= 批量收尾' },
     { method: 'GET', path: '/api/studio/inbox', layer: 'relay', note: '传信员待命长轮询；?relay=&wait=25&take=1，有单立刻返回并 claim' },
     { method: 'POST', path: '/api/studio/report', layer: 'execution', note: '进度/阻塞汇报' },
+    {
+      method: 'GET/POST/PATCH',
+      path: '/api/studio/announcements',
+      layer: 'board',
+      note: '公告栏（平台更新/修复/通知）。GET 列表 ?limit= ?kind= ?since=；传信员探测 GET ?probe=1&since=<cursor>（只回有无新公告，不搬正文）；POST {title, body?, kind?, severity?, audience?, version?}；PATCH ?id= {archived:true} 下架（仅作者或 owner）',
+    },
     { method: 'POST', path: '/api/studio/tokens', layer: 'log', note: 'token 记账' },
     { method: 'POST', path: '/api/studio/logs', layer: 'log', note: '每日 Agent log' },
   ],

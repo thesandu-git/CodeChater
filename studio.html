@@ -27,6 +27,9 @@
         <button class="rail-btn" data-tab="relay" title="值班室：bot 登记与传信员待命">
           <span class="glyph">◈</span><span>值班</span>
         </button>
+        <button class="rail-btn" data-tab="board" title="公告栏：平台更新、修复、通知">
+          <span class="glyph">◆</span><span>公告</span>
+        </button>
       </nav>
       <div class="rail-foot">
         <button id="signOut" class="rail-btn hidden" title="退出">
@@ -129,6 +132,18 @@
         <div class="card"><h3>已登记</h3><p class="sub">在线 = 最近 3 个心跳周期内报到过</p><div id="agentTable"></div></div>
         <div class="card"><h3>派单队列</h3><div id="dispatchTable"></div></div>
         <div class="card"><h3>传信员怎么待命</h3><div id="relaySnippet"></div></div>
+      </section>
+
+      <section id="layer-board" class="layer hidden">
+        <div class="section-head">
+          <div>
+            <h2>公告栏</h2>
+            <p class="sub">平台更新 / 修了什么 bug / 通知 · <span id="boardMeta">—</span></p>
+          </div>
+        </div>
+
+        <div id="announcementList" class="ann-list"></div>
+        <div class="card"><h3>传信员怎么检测更新</h3><div id="boardSnippet"></div></div>
       </section>
 
       <section id="layer-log" class="layer hidden">
